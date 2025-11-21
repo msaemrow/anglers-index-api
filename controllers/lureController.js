@@ -1,33 +1,41 @@
 const { Lure, User, sequelize } = require("../models");
 const { Op } = require("sequelize");
 
-const getAllUserLures = async (req, res) => {
+const getLures = async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId, 10);
+    const { user_id, brand, name, color, brands_only, lures_only } = req.query;
 
-    if (!userId) {
-      return res
-        .status(401)
-        .json({ error: "Unauthorized. Must be logged in." });
+    if (brands_only && brands_only === "Y") {
+      // Only distinct brands
+      const brands = await Lure.findAll({
+        attributes: [
+          [sequelize.fn("DISTINCT", sequelize.col("brand")), "brand"],
+        ],
+        order: [["brand", "ASC"]],
+      });
+      return res.status(200).json(brands.map((b) => b.brand));
     }
 
-    // get all "standard" lures (userId = 3) plus lures by the user
-    const lures = await Lure.findAll({
-      where: {
-        [Op.or]: [{ userId: 3 }, { userId: userId }],
-      },
-    });
+    // Build where clause for filtered lures
+    let whereClause = {};
+    if (user_id) whereClause.user_id = { [Op.or]: [3, parseInt(user_id, 10)] };
+    if (brand) whereClause.brand = { [Op.iLike]: `%${brand}%` };
+    if (name) whereClause.name = { [Op.iLike]: `%${name}%` };
+    if (color) whereClause.color = { [Op.iLike]: `%${color}%` };
 
-    return res.status(200).json(lures);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-};
+    const includeUser = user_id
+      ? [
+          {
+            model: User,
+            as: "owner",
+            attributes: ["id", "username", "email"],
+          },
+        ]
+      : [];
 
-const getAllLures = async (req, res) => {
-  try {
-    // Ideally, check admin authorization before this controller is called
     const lures = await Lure.findAll({
+      where: whereClause,
+      include: includeUser,
       order: [
         ["brand", "ASC"],
         ["name", "ASC"],
@@ -35,23 +43,19 @@ const getAllLures = async (req, res) => {
       ],
     });
 
-    return res.status(200).json(lures);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-};
+    if (lures_only && lures_only === "Y") {
+      // Only return lures array
+      return res.status(200).json(lures);
+    }
 
-const getBrandNames = async (req, res) => {
-  try {
-    const brands = await Lure.findAll({
+    // Otherwise, get distinct brands as well
+    const brandRecords = await Lure.findAll({
       attributes: [[sequelize.fn("DISTINCT", sequelize.col("brand")), "brand"]],
       order: [["brand", "ASC"]],
     });
+    const brands = brandRecords.map((b) => b.brand);
 
-    // Extract brand strings only
-    const brandNames = brands.map((b) => b.brand);
-
-    return res.status(200).json(brandNames);
+    return res.status(200).json({ lures, brands });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -123,9 +127,7 @@ const deleteLure = async (req, res) => {
 };
 
 module.exports = {
-  getAllUserLures,
-  getAllLures,
-  getBrandNames,
+  getLures,
   addLure,
   editLure,
   deleteLure,

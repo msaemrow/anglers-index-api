@@ -2,9 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const {
-  getAllUserLures,
-  getAllLures,
-  getBrandNames,
+  getLures,
   addLure,
   editLure,
   deleteLure,
@@ -18,9 +16,7 @@ const {
 // Adjust middleware import to your setup
 
 // Routes
-router.get("/all/:userId", getAllUserLures);
-router.get("/all", getAllLures);
-router.get("/brands", getBrandNames);
+router.get("/", getLures);
 router.post("/", tokenRequired, addLure);
 router.put("/edit/:lureId", adminRequired, editLure);
 router.delete("/delete/:lureId", loginRequired, deleteLure);
