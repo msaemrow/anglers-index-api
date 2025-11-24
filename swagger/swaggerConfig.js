@@ -7,6 +7,8 @@ const {
   speciesSchema,
   fishCatchSchema,
   masterAnglerSchema,
+  tackleBoxSchema,
+  userSchema,
 } = require("./schemas"); // import your schema definitions
 
 const options = {
@@ -29,6 +31,8 @@ const options = {
         Species: speciesSchema,
         FishCatch: fishCatchSchema,
         MasterAngler: masterAnglerSchema,
+        TackleBox: tackleBoxSchema,
+        User: userSchema,
       },
     },
   },

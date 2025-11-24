@@ -149,10 +149,35 @@ const masterAnglerSchema = {
   required: ["user_id", "catch_id"],
 };
 
+const tackleBoxSchema = {
+  type: "object",
+  properties: {
+    user_id: { type: "integer", example: 7 },
+    lure_id: { type: "integer", example: 11 },
+  },
+  required: ["user_id", "lure_id"],
+};
+
+const userSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer", example: 1 },
+    username: { type: "string", example: "johndoe" },
+    first_name: { type: "string", example: "John" },
+    last_name: { type: "string", example: "Doe" },
+    email: { type: "string", format: "email", example: "john@example.com" },
+    is_admin: { type: "boolean", example: false },
+  },
+  required: ["username", "first_name", "last_name", "email"],
+  additionalProperties: false,
+};
+
 module.exports = {
   lakeSchema,
   lureSchema,
   speciesSchema,
   fishCatchSchema,
   masterAnglerSchema,
+  tackleBoxSchema,
+  userSchema,
 };

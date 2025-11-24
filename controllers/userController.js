@@ -1,5 +1,6 @@
-const { User } = require("../models");
-const createToken = require("../helpers/createToken"); // your JWT token generator
+const { Op } = require("sequelize");
+const { User, FishCatch, MasterAngler, Lure } = require("../models");
+const createToken = require("../helpers/createToken");
 const bcrypt = require("bcrypt");
 
 exports.signup = async (req, res) => {
@@ -10,7 +11,6 @@ exports.signup = async (req, res) => {
   }
 
   try {
-    // Check if username or email already exists
     const existingUsername = await User.findOne({ where: { username } });
     if (existingUsername) {
       return res.status(400).json({ error: "Username already exists." });
@@ -28,7 +28,6 @@ exports.signup = async (req, res) => {
       email,
     });
 
-    // Generate token after signup
     const token = createToken(newUser);
 
     return res.status(201).json({
@@ -85,26 +84,7 @@ exports.login = async (req, res) => {
   }
 };
 
-exports.getUserById = async (req, res) => {
-  const { user_id } = req.params;
-  const currentUser = req.user; // Assume req.user is set by auth middleware
-
-  if (parseInt(user_id) !== currentUser.id && !currentUser.is_admin) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
-  try {
-    const user = await User.findByPk(user_id, {
-      attributes: { exclude: ["password"] },
-    });
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    return res.status(200).json(user);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-};
-
+// GET /users? filters (id, username, email, first_name, last_name, is_admin)
 exports.getAllUsers = async (req, res) => {
   const currentUser = req.user;
 
@@ -113,10 +93,75 @@ exports.getAllUsers = async (req, res) => {
   }
 
   try {
+    // Build filter conditions from query params
+    const filters = {};
+    const allowedFilters = [
+      "id",
+      "username",
+      "email",
+      "first_name",
+      "last_name",
+      "is_admin",
+    ];
+
+    allowedFilters.forEach((field) => {
+      if (req.query[field] !== undefined) {
+        if (field === "is_admin") {
+          // Convert string to boolean
+          filters[field] = req.query[field] === "true";
+        } else if (field === "id") {
+          filters[field] = Number(req.query[field]);
+        } else {
+          filters[field] = { [Op.iLike]: `%${req.query[field]}%` };
+        }
+      }
+    });
+
     const users = await User.findAll({
+      where: filters,
       attributes: { exclude: ["password"] },
     });
+
     return res.status(200).json(users);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getUserById = async (req, res) => {
+  const { user_id } = req.params;
+  const currentUser = req.user; // Assume req.user is set by auth middleware
+
+  if (currentUser) {
+    if (parseInt(user_id) !== currentUser.id && !currentUser.is_admin) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+  }
+
+  try {
+    const user = await User.findByPk(user_id, {
+      attributes: { exclude: ["password"] },
+    });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Fetch counts of related items
+    const [fishCatchesCount, masterAnglerCount, luresCount] = await Promise.all(
+      [
+        FishCatch.count({ where: { user_id } }),
+        MasterAngler.count({ where: { user_id } }),
+        Lure.count({ where: { user_id } }),
+      ]
+    );
+
+    // Compose response
+    const userData = user.toJSON();
+    userData.stats = {
+      fish_catches_count: fishCatchesCount,
+      master_angler_catches_count: masterAnglerCount,
+      lures_count: luresCount,
+    };
+
+    return res.status(200).json(userData);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
