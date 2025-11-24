@@ -21,7 +21,9 @@ module.exports = (sequelize) => {
     },
     {
       tableName: "fish_species",
-      timestamps: false,
+      timestamps: true,
+      underscored: true,
+      paranoid: true,
     }
   );
 

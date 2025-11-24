@@ -51,7 +51,9 @@ module.exports = (sequelize) => {
     },
     {
       tableName: "users",
-      timestamps: false,
+      timestamps: true,
+      underscored: true,
+      paranoid: true,
       hooks: {
         beforeCreate: async (user) => {
           if (user.password) {

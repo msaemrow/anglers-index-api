@@ -37,7 +37,9 @@ module.exports = (sequelize) => {
     },
     {
       tableName: "lakes",
-      timestamps: false,
+      timestamps: true,
+      underscored: true,
+      paranoid: true,
     }
   );
 

@@ -88,7 +88,9 @@ module.exports = (sequelize) => {
     },
     {
       tableName: "fish_catches",
-      timestamps: false,
+      timestamps: true,
+      underscored: true,
+      paranoid: true,
     }
   );
 

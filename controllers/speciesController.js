@@ -2,10 +2,27 @@ const { FishSpecies } = require("../models");
 const { ValidationError } = require("sequelize");
 const { Op } = require("sequelize");
 
-// GET all fish species
+// GET all fish species, optionally filter by names (semicolon separated) and sort alphabetically
 exports.getAllFishSpecies = async (req, res) => {
   try {
-    const species = await FishSpecies.findAll();
+    const { names } = req.query;
+    let where = {};
+
+    if (names) {
+      // Split names by semicolon and trim whitespace
+      const namesArray = names.split(";").map((name) => name.trim());
+
+      // Filter species where name is in namesArray (case-insensitive)
+      where.name = {
+        [Op.iLike]: { [Op.any]: namesArray.map((n) => `%${n}%`) },
+      };
+    }
+
+    const species = await FishSpecies.findAll({
+      where,
+      order: [["name", "ASC"]], // Sort alphabetically by name
+    });
+
     return res.status(200).json(species);
   } catch (error) {
     return res.status(500).json({ error: error.message });

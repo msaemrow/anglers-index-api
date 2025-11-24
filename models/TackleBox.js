@@ -28,7 +28,9 @@ module.exports = (sequelize) => {
     },
     {
       tableName: "tackle_box",
-      timestamps: false,
+      timestamps: true,
+      underscored: true,
+      paranoid: true,
     }
   );
 

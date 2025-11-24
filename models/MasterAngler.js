@@ -25,7 +25,9 @@ module.exports = (sequelize) => {
     },
     {
       tableName: "master_angler_catches",
-      timestamps: false,
+      timestamps: true,
+      underscored: true,
+      paranoid: true,
     }
   );
 
