@@ -2,55 +2,103 @@
 
 const { FishCatch, Lake, Lure, Species } = require("../models");
 const axios = require("axios");
+const { Op } = require("sequelize");
 
-const getFishCatches = async (req, res) => {
+const getAllFishCatches = async (req, res) => {
   try {
-    const { user_id, catch_id, masterAngler } = req.query;
+    const {
+      user_id,
+      catch_id,
+      masterAngler,
+      orderBy,
+      minLength,
+      minWeight,
+      species_id,
+    } = req.query;
+
+    let whereClause = {};
+
+    const attributes = {
+      exclude: [
+        "createdAt",
+        "updatedAt",
+        "deletedAt",
+        "timestamp",
+        "barometric",
+        "temperature",
+        "weather_conditions",
+        "wind_direction",
+        "wind_speed",
+        "fish_image",
+        "witness",
+      ],
+    };
+
+    const include = [
+      { model: Lake, as: "lake", attributes: ["name"] },
+      { model: Lure, as: "lure", attributes: ["brand", "name", "color"] },
+      { model: Species, as: "species", attributes: ["name"] },
+    ];
+
+    const buildOrder = (orderByParam) => {
+      const validFields = ["date", "weight", "length", "createdAt"];
+      if (!orderByParam) return [["date", "DESC"]];
+
+      const [field, directionRaw] = orderByParam.split(":");
+      const direction = directionRaw ? directionRaw.toUpperCase() : "DESC";
+
+      if (!validFields.includes(field)) return [["timestamp", "DESC"]];
+      if (!["ASC", "DESC"].includes(direction)) return [["timestamp", "DESC"]];
+
+      return [[field, direction]];
+    };
 
     if (catch_id) {
-      const catchObj = await FishCatch.findByPk(catch_id, {
-        include: [
-          { model: Lake, as: "lake" },
-          { model: Lure, as: "lure" },
-          { model: Species, as: "species" },
-        ],
-      });
-
-      if (!catchObj) {
-        return res
-          .status(404)
-          .json({ error: `Fish catch with ID ${catch_id} not found` });
-      }
-
-      return res.status(200).json(catchObj);
+      const idList = catch_id
+        .split(";")
+        .map((id) => parseInt(id.trim()))
+        .filter((n) => !isNaN(n));
+      whereClause.id = idList.length === 1 ? idList[0] : idList;
     }
 
-    // If no catch_id, get all catches (optionally filtered)
-    if (!user_id) {
-      return res
-        .status(400)
-        .json({ error: "user_id query parameter is required" });
+    if (user_id) {
+      whereClause.user_id = user_id;
     }
 
-    const whereClause = { user_id };
     if (masterAngler !== undefined) {
       whereClause.master_angler =
         masterAngler === "Y" || masterAngler === "true";
     }
 
+    if (minLength !== undefined) {
+      whereClause.length = { [Op.gte]: parseFloat(minLength) };
+    }
+
+    if (minWeight !== undefined) {
+      whereClause.weight = { [Op.gte]: parseFloat(minWeight) };
+    }
+
+    if (species_id) {
+      whereClause.species_id = species_id;
+    }
+
+    if (Object.keys(whereClause).length === 0) {
+      return res.status(400).json({
+        error: "At least one filter parameter must be provided.",
+      });
+    }
+
     const catches = await FishCatch.findAll({
       where: whereClause,
-      include: [
-        { model: Lake, as: "lake" },
-        { model: Lure, as: "lure" },
-        { model: Species, as: "species" },
-      ],
+      attributes,
+      include,
+      order: buildOrder(orderBy),
     });
 
     if (!catches.length) {
       return res
         .status(404)
-        .json({ error: `No fish catches found for user ${user_id}` });
+        .json({ error: "No fish catches found matching criteria" });
     }
 
     return res.status(200).json(catches);
@@ -59,7 +107,7 @@ const getFishCatches = async (req, res) => {
   }
 };
 
-const getFishCatchDetails = async (req, res) => {
+const getFishCatchById = async (req, res) => {
   try {
     const { catch_id } = req.params;
 
@@ -83,7 +131,7 @@ const getFishCatchDetails = async (req, res) => {
   }
 };
 
-const addFishCatch = async (req, res) => {
+const createFishCatch = async (req, res) => {
   try {
     const {
       user_id,
@@ -115,10 +163,10 @@ const addFishCatch = async (req, res) => {
   }
 };
 
-const updateMasterAnglerStatus = async (req, res) => {
+const updateFishCatch = async (req, res) => {
   try {
     const { catch_id } = req.params;
-    const { master_angler } = req.body;
+    const updates = req.body;
 
     const catchObj = await FishCatch.findByPk(catch_id);
 
@@ -128,16 +176,14 @@ const updateMasterAnglerStatus = async (req, res) => {
         .json({ error: `Fish catch with ID ${catch_id} not found` });
     }
 
-    catchObj.master_angler = master_angler;
+    // Update only provided fields
+    Object.keys(updates).forEach((key) => {
+      catchObj[key] = updates[key];
+    });
+
     await catchObj.save();
 
-    return res.status(200).json({
-      message: `Master angler status updated for ID ${catch_id}`,
-      fish_catch: {
-        id: catchObj.id,
-        master_angler: catchObj.master_angler,
-      },
-    });
+    return res.status(200).json(catchObj);
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
@@ -193,9 +239,9 @@ const getWeather = async (req, res) => {
 
 module.exports = {
   getWeather,
-  addFishCatch,
-  getFishCatches,
-  getFishCatchDetails,
+  getAllFishCatches,
+  getFishCatchById,
+  updateFishCatch,
+  createFishCatch,
   deleteFishCatch,
-  updateMasterAnglerStatus,
 };

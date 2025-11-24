@@ -6,7 +6,7 @@ const fishCatchController = require("../controllers/fishCatchController");
  * @openapi
  * /fishcatch:
  *   get:
- *     summary: Get fish catches filtered by user_id, catch_id, or master angler status
+ *     summary: Get fish catches with options to filter
  *     tags:
  *       - FishCatch
  *     parameters:
@@ -20,8 +20,15 @@ const fishCatchController = require("../controllers/fishCatchController");
  *         name: catch_id
  *         required: false
  *         schema:
- *           type: integer
- *         description: Specific fish catch ID to retrieve
+ *           type: string
+ *           example: "12;15;20"
+ *         description: Semicolon-separated list of fish catch IDs to retrieve (e.g. "12;15;20")
+ *       - in: query
+ *         description: ID of the species of fish catch to retrieve
+ *         name: species_id
+ *         required: false
+ *         schema:
+ *           type: string
  *       - in: query
  *         name: masterAngler
  *         required: false
@@ -29,6 +36,23 @@ const fishCatchController = require("../controllers/fishCatchController");
  *           type: string
  *           enum: ["Y"]
  *         description: Filter catches by master angler status "Y"
+ *       - in: query
+ *         description: Return all catches greater than or equal to this length
+ *         name: minLength
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         description: Return all catches greater than or equal to this weight
+ *         name: minWeight
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: orderBy
+ *         required: false
+ *         schema:
+ *           type: string
+ *           example: "date:desc"
+ *           description: Field and direction to order by, e.g. "date:desc", "weight:asc". Defaults to "timestamp:desc".
  *     responses:
  *       200:
  *         description: Fish catch or list of fish catches returned
@@ -45,7 +69,70 @@ const fishCatchController = require("../controllers/fishCatchController");
  *       404:
  *         description: Fish catch(es) not found
  */
-router.get("/", fishCatchController.getFishCatches);
+router.get("/", fishCatchController.getAllFishCatches);
+
+/**
+ * @openapi
+ * /fishcatch/{catch_id}:
+ *   get:
+ *     summary: Get a single fish catch by ID
+ *     tags:
+ *       - FishCatch
+ *     parameters:
+ *       - in: path
+ *         name: catch_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the fish catch to fetch
+ *     responses:
+ *       200:
+ *         description: Fish catch returned
+ *       404:
+ *         description: Fish catch not found
+ */
+router.get("/:catch_id", fishCatchController.getFishCatchById);
+
+/**
+ * @openapi
+ * /fishcatch/{catch_id}:
+ *   patch:
+ *     summary: Partially update a fish catch by ID
+ *     tags:
+ *       - FishCatch
+ *     parameters:
+ *       - in: path
+ *         name: catch_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the fish catch to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               master_angler:
+ *                 type: boolean
+ *               weight:
+ *                 type: number
+ *               length:
+ *                 type: number
+ *               date:
+ *                 type: string
+ *                 format: date
+ *               time:
+ *                 type: string
+ *                 format: time
+ *     responses:
+ *       200:
+ *         description: Fish catch updated successfully
+ *       404:
+ *         description: Fish catch not found
+ */
+router.patch("/:catch_id", fishCatchController.updateFishCatch);
 
 /**
  * @openapi
@@ -70,7 +157,7 @@ router.get("/", fishCatchController.getFishCatches);
  *       400:
  *         description: Invalid request data
  */
-router.post("/", fishCatchController.addFishCatch);
+router.post("/", fishCatchController.createFishCatch);
 
 /**
  * @openapi
@@ -93,42 +180,6 @@ router.post("/", fishCatchController.addFishCatch);
  *         description: Fish catch not found
  */
 router.delete("/:catch_id", fishCatchController.deleteFishCatch);
-
-/**
- * @openapi
- * /fishcatch/{catch_id}/master-angler:
- *   put:
- *     summary: Update master angler status for a fish catch
- *     tags:
- *       - FishCatch
- *     parameters:
- *       - in: path
- *         name: catch_id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID of the fish catch to update
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               master_angler:
- *                 type: boolean
- *             required:
- *               - master_angler
- *     responses:
- *       200:
- *         description: Master angler status updated
- *       404:
- *         description: Fish catch not found
- */
-router.put(
-  "/:catch_id/master-angler",
-  fishCatchController.updateMasterAnglerStatus
-);
 
 /**
  * @openapi

@@ -9,6 +9,12 @@ const { swaggerSpec, swaggerUi } = require("./swagger/swaggerConfig");
 // Use swagger docs
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// expose swagger JSON for Postman
+app.get("/swagger.json", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.send(swaggerSpec);
+});
+
 // Import route modules
 // const mainRoutes = require("./routes/mainRoutes");
 const userRoutes = require("./routes/userRoutes");

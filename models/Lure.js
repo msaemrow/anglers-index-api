@@ -41,10 +41,11 @@ module.exports = (sequelize) => {
       timestamps: true,
       underscored: true,
       paranoid: true,
+      defaultScope: {
+        attributes: { exclude: ["createdAt", "updatedAt", "deletedAt"] },
+      },
     }
   );
-
-  // If you want to add instance or class methods, add them here as needed
 
   return Lure;
 };
