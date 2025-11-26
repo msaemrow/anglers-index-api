@@ -59,6 +59,34 @@ router.get("/", lakeController.getLakes);
 
 /**
  * @openapi
+ * /lakes/{lakeId}:
+ *   get:
+ *     summary: Get a single lake by ID
+ *     tags:
+ *       - Lakes
+ *     parameters:
+ *       - in: path
+ *         name: lakeId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the lake to retrieve
+ *     responses:
+ *       200:
+ *         description: Lake retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Lake'
+ *       404:
+ *         description: Lake not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/:lakeId", lakeController.getLakeById);
+
+/**
+ * @openapi
  * /lakes:
  *   post:
  *     summary: Add a new lake (admin only)

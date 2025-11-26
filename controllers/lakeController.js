@@ -54,6 +54,23 @@ async function getLakes(req, res) {
   }
 }
 
+async function getLakeById(req, res) {
+  try {
+    const { lakeId } = req.params;
+
+    const lake = await Lake.findByPk(lakeId);
+
+    if (!lake) {
+      return res.status(404).json({ error: "Lake not found" });
+    }
+
+    return res.status(200).json(lake);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Failed to retrieve lake" });
+  }
+}
+
 // Controller: add new lake
 async function addLake(req, res) {
   try {
@@ -142,6 +159,7 @@ async function updateLake(req, res) {
 
 module.exports = {
   getLakes,
+  getLakeById,
   addLake,
   deleteLake,
   updateLake,
