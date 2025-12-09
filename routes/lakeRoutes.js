@@ -112,7 +112,7 @@ router.get("/:lakeId", lakeController.getLakeById);
  *       500:
  *         description: Server error
  */
-router.post("/", adminRequired, lakeController.addLake);
+router.post("/", lakeController.addLake);
 
 /**
  * @openapi

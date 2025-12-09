@@ -1,11 +1,11 @@
-const { FishSpecies } = require("../models");
+const { Species, FishCatch } = require("../models");
 const { ValidationError } = require("sequelize");
 const { Op } = require("sequelize");
 
 // GET all fish species, optionally filter by names (semicolon separated) and sort alphabetically
 exports.getAllFishSpecies = async (req, res) => {
   try {
-    const { names } = req.query;
+    const { names, includeCaughtSpecies, userId } = req.query;
     let where = {};
 
     if (names) {
@@ -18,12 +18,61 @@ exports.getAllFishSpecies = async (req, res) => {
       };
     }
 
-    const species = await FishSpecies.findAll({
+    // Base query options
+    const queryOptions = {
       where,
       order: [["name", "ASC"]], // Sort alphabetically by name
-    });
+    };
 
-    return res.status(200).json(species);
+    // If includeCaughtSpecies flag is set, include ONLY the biggest catch for each species
+    if (includeCaughtSpecies === "true" && userId) {
+      queryOptions.include = [
+        {
+          model: FishCatch,
+          as: "fishCatches", // Adjust alias based on your association
+          where: { user_id: userId },
+          required: false, // LEFT JOIN - includes species even with no catches
+          attributes: ["id", "length", "date", "master_angler"],
+          limit: 1, // Only get one catch per species
+          separate: true, // Required for limit to work per species
+          order: [["length", "DESC"]], // Get the biggest one
+        },
+      ];
+    }
+
+    const species = await Species.findAll(queryOptions);
+
+    // Transform data if includeCaughtSpecies is true
+    let result = species;
+    if (includeCaughtSpecies === "true" && userId) {
+      result = species.map((sp) => {
+        const speciesData = sp.toJSON();
+
+        // Since we used limit: 1, there's either 0 or 1 catch
+        const biggestCatch =
+          speciesData.fishCatches && speciesData.fishCatches.length > 0
+            ? speciesData.fishCatches[0]
+            : null;
+
+        return {
+          ...speciesData,
+          caught: !!biggestCatch,
+          personalBest: biggestCatch
+            ? {
+                catchId: biggestCatch.id,
+                length: biggestCatch.length,
+                date: biggestCatch.date,
+              }
+            : null,
+          approved_master_angler: biggestCatch
+            ? biggestCatch.master_angler
+            : false,
+          fishCatches: undefined, // Remove the catches array from response
+        };
+      });
+    }
+
+    return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

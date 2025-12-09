@@ -29,7 +29,7 @@ const { adminRequired } = require("../middleware/authMiddleware");
  *       500:
  *         description: Server error
  */
-router.get("/all", fishSpeciesController.getAllFishSpecies);
+router.get("/", fishSpeciesController.getAllFishSpecies);
 
 /**
  * @openapi
