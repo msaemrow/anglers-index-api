@@ -109,7 +109,7 @@ router.get("/", getLures);
  *       500:
  *         description: Server error
  */
-router.post("/", tokenRequired, addLure);
+router.post("/", addLure);
 
 /**
  * @openapi
@@ -154,7 +154,7 @@ router.post("/", tokenRequired, addLure);
  *       500:
  *         description: Server error
  */
-router.put("/edit/:lureId", adminRequired, editLure);
+router.put("/:lureId", editLure);
 
 /**
  * @openapi
@@ -188,6 +188,6 @@ router.put("/edit/:lureId", adminRequired, editLure);
  *       500:
  *         description: Server error
  */
-router.delete("/delete/:lureId", loginRequired, deleteLure);
+router.delete("/delete/:lureId", deleteLure);
 
 module.exports = router;

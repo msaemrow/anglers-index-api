@@ -37,7 +37,11 @@ exports.getTackleBoxLures = async (req, res) => {
       return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
     });
 
-    return res.status(200).json({ tackle_box: filteredLures });
+    const brands = [...new Set(filteredLures.map((lure) => lure.brand))].sort(
+      (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+
+    return res.status(200).json({ tackle_box: filteredLures, brands: brands });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

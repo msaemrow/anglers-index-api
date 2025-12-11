@@ -31,7 +31,7 @@ const { loginRequired } = require("../middleware/authMiddleware");
  *       404:
  *         description: No lures found for user
  */
-router.get("/:user_id", loginRequired, tackleBoxController.getTackleBoxLures);
+router.get("/:user_id", tackleBoxController.getTackleBoxLures);
 
 /**
  * @openapi
@@ -87,7 +87,7 @@ router.post("/", loginRequired, tackleBoxController.addFavorite);
  *       400:
  *         description: Missing required fields
  */
-router.delete("/", loginRequired, tackleBoxController.removeFavorite);
+router.delete("/", tackleBoxController.removeFavorite);
 
 /**
  * @openapi
@@ -115,6 +115,6 @@ router.delete("/", loginRequired, tackleBoxController.removeFavorite);
  *       400:
  *         description: Favorite not deleted or missing fields
  */
-router.patch("/restore", loginRequired, tackleBoxController.restoreFavorite);
+router.patch("/restore", tackleBoxController.restoreFavorite);
 
 module.exports = router;
