@@ -61,6 +61,30 @@ const getLures = async (req, res) => {
   }
 };
 
+const getLureById = async (req, res) => {
+  try {
+    const lureId = parseInt(req.params.lureId, 10);
+
+    const lure = await Lure.findByPk(lureId, {
+      include: [
+        {
+          model: User,
+          as: "owner",
+          attributes: ["id", "username", "email"],
+        },
+      ],
+    });
+
+    if (!lure) {
+      return res.status(404).json({ error: "Lure not found" });
+    }
+
+    return res.status(200).json(lure);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 const addLure = async (req, res) => {
   try {
     const { userId, name, brand, color, size } = req.body;
@@ -128,6 +152,7 @@ const deleteLure = async (req, res) => {
 
 module.exports = {
   getLures,
+  getLureById,
   addLure,
   editLure,
   deleteLure,

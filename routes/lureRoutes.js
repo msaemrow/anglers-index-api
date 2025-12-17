@@ -6,6 +6,7 @@ const {
   addLure,
   editLure,
   deleteLure,
+  getLureById,
 } = require("../controllers/lureController");
 
 const {
@@ -81,6 +82,34 @@ const {
  *                         type: string
  */
 router.get("/", getLures);
+
+/**
+ * @openapi
+ * /lures/{lureId}:
+ *   get:
+ *     summary: Get a single lure by ID
+ *     tags:
+ *       - Lures
+ *     parameters:
+ *       - in: path
+ *         name: lureId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the lure to retrieve
+ *     responses:
+ *       200:
+ *         description: Lure object retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Lure'
+ *       404:
+ *         description: Lure not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/:lureId", getLureById);
 
 /**
  * @openapi

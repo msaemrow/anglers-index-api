@@ -8,9 +8,7 @@ exports.getTackleBoxLures = async (req, res) => {
     const favorites = await TackleBox.findAll({ where: { user_id } });
 
     if (!favorites.length) {
-      return res
-        .status(404)
-        .json({ message: "No lures found in tackle box for this user." });
+      return res.status(200).json({ tackle_box: [], brands: [] }); // Return empty instead of 404
     }
 
     const lures = await Promise.all(
@@ -47,7 +45,7 @@ exports.getTackleBoxLures = async (req, res) => {
   }
 };
 
-// Add lure to favorites
+// Add lure to tackle box
 exports.addFavorite = async (req, res) => {
   const { user_id, lure_id } = req.body;
 
@@ -56,38 +54,30 @@ exports.addFavorite = async (req, res) => {
   }
 
   try {
-    // Check if favorite exists including soft deleted
+    // Check if already exists
     const existing = await TackleBox.findOne({
       where: { user_id, lure_id },
-      paranoid: false, // include soft deleted records
     });
 
     if (existing) {
-      if (existing.deletedAt) {
-        // If soft deleted, restore it
-        await existing.restore();
-        return res
-          .status(200)
-          .json({ message: "Lure restored to favorites", lure_id });
-      } else {
-        // Already exists and active
-        return res
-          .status(409)
-          .json({ message: "Lure already in favorites", lure_id });
-      }
+      return res.status(200).json({
+        message: "Lure already in tackle box",
+        lure_id,
+      });
     }
 
     // Create new favorite
     await TackleBox.create({ user_id, lure_id });
-    return res
-      .status(201)
-      .json({ message: "Lure added to favorites", lure_id });
+    return res.status(201).json({
+      message: "Lure added to tackle box",
+      lure_id,
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
 };
 
-// Remove lure from favorites (soft delete)
+// Remove lure from tackle box (hard delete)
 exports.removeFavorite = async (req, res) => {
   const { user_id, lure_id } = req.body;
 
@@ -96,49 +86,18 @@ exports.removeFavorite = async (req, res) => {
   }
 
   try {
-    const existing = await TackleBox.findOne({ where: { user_id, lure_id } });
-
-    if (!existing) {
-      return res.status(404).json({ message: "Favorite not found" });
-    }
-
-    await existing.destroy(); // soft delete due to paranoid:true
-    return res
-      .status(200)
-      .json({ message: "Lure removed from favorites", lure_id });
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-};
-
-// Restore a soft deleted favorite
-exports.restoreFavorite = async (req, res) => {
-  const { user_id, lure_id } = req.body;
-
-  if (!user_id || !lure_id) {
-    return res.status(400).json({ error: "user_id and lure_id are required" });
-  }
-
-  try {
-    const deletedFavorite = await TackleBox.findOne({
+    const deleted = await TackleBox.destroy({
       where: { user_id, lure_id },
-      paranoid: false,
     });
 
-    if (!deletedFavorite) {
-      return res
-        .status(404)
-        .json({ message: "Favorite not found (even soft deleted)" });
+    if (!deleted) {
+      return res.status(404).json({ message: "Lure not found in tackle box" });
     }
 
-    if (!deletedFavorite.deletedAt) {
-      return res
-        .status(400)
-        .json({ message: "Favorite is not deleted, cannot restore" });
-    }
-
-    await deletedFavorite.restore();
-    return res.status(200).json({ message: "Favorite restored", lure_id });
+    return res.status(200).json({
+      message: "Lure removed from tackle box",
+      lure_id,
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

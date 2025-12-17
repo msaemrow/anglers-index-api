@@ -30,7 +30,6 @@ module.exports = (sequelize) => {
       tableName: "tackle_box",
       timestamps: true,
       underscored: true,
-      paranoid: true,
       defaultScope: {
         attributes: { exclude: ["createdAt", "updatedAt", "deletedAt"] },
       },

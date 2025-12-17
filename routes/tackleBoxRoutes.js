@@ -59,7 +59,7 @@ router.get("/:user_id", tackleBoxController.getTackleBoxLures);
  *       400:
  *         description: Missing required fields
  */
-router.post("/", loginRequired, tackleBoxController.addFavorite);
+router.post("/", tackleBoxController.addFavorite);
 
 /**
  * @openapi
@@ -88,33 +88,5 @@ router.post("/", loginRequired, tackleBoxController.addFavorite);
  *         description: Missing required fields
  */
 router.delete("/", tackleBoxController.removeFavorite);
-
-/**
- * @openapi
- * /tackle-box/restore:
- *   patch:
- *     summary: Restore a soft deleted favorite lure
- *     tags: [Tackle Box]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [user_id, lure_id]
- *             properties:
- *               user_id:
- *                 type: integer
- *               lure_id:
- *                 type: integer
- *     responses:
- *       200:
- *         description: Favorite restored
- *       404:
- *         description: Favorite not found
- *       400:
- *         description: Favorite not deleted or missing fields
- */
-router.patch("/restore", tackleBoxController.restoreFavorite);
 
 module.exports = router;
