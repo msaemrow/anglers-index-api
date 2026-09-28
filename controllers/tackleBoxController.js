@@ -5,27 +5,13 @@ exports.getTackleBoxLures = async (req, res) => {
   const { user_id } = req.params;
 
   try {
-    const favorites = await TackleBox.findAll({ where: { user_id } });
-
-    if (!favorites.length) {
-      return res.status(200).json({ tackle_box: [], brands: [] }); // Return empty instead of 404
-    }
-
-    const lures = await Promise.all(
-      favorites.map(async (fav) => {
-        const lure = await Lure.findByPk(fav.lure_id);
-        if (!lure) return null;
-        return {
-          id: lure.id,
-          brand: lure.brand,
-          name: lure.name,
-          color: lure.color,
-          size: lure.size,
-        };
-      })
-    );
-
-    const filteredLures = lures.filter(Boolean);
+    const favorites = await TackleBox.findAll({
+      where: { user_id },
+      attributes: ["id"],
+      include: [{ model: Lure, as: "lure", required: true,
+        attributes: ["id", "brand", "name", "color", "size"] }],
+    });
+    const filteredLures = favorites.map(favorite => favorite.lure.toJSON());
 
     filteredLures.sort((a, b) => {
       const brandCompare = a.brand.localeCompare(b.brand, undefined, {
