@@ -53,6 +53,11 @@ app.use(
   })
 );
 
+// The dashboard is scoped to the authenticated user, never a query-string user ID.
+const { addUserToReq, loginRequired } = require("./middleware/authMiddleware");
+const { getDashboard } = require("./controllers/dashboardController");
+app.get("/dashboard", addUserToReq, loginRequired, getDashboard);
+
 // Register routes with their paths
 // app.use("/", mainRoutes);
 app.use("/users", userRoutes);
