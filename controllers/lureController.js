@@ -1,4 +1,4 @@
-const { Lure, User, sequelize } = require("../models");
+const { Lure, User, TackleBox, sequelize } = require("../models");
 const { Op } = require("sequelize");
 
 const getLures = async (req, res) => {
@@ -85,51 +85,48 @@ const getLureById = async (req, res) => {
   }
 };
 
+const lureFields = ["brand", "name", "color", "size"];
+function validatedFields(body) {
+  if (lureFields.some(field => typeof body[field] !== "string" || !body[field].trim())) return null;
+  return Object.fromEntries(lureFields.map(field => [field, body[field].trim()]));
+}
+
 const addLure = async (req, res) => {
   try {
-    const { userId, name, brand, color, size } = req.body;
-
-    if (!userId || !name || !brand || !color || !size) {
-      return res.status(400).json({ error: "Missing required fields" });
+    const fields = validatedFields(req.body);
+    if (!fields) return res.status(400).json({ error: "Brand, name, color, and size are required." });
+    if (req.body.add_to_tackle_box !== undefined && typeof req.body.add_to_tackle_box !== "boolean") {
+      return res.status(400).json({ error: "add_to_tackle_box must be a boolean." });
     }
-
-    const newLure = await Lure.create({
-      userId,
-      name,
-      brand,
-      color,
-      size,
+    const newLure = await sequelize.transaction(async transaction => {
+      const lure = await Lure.create({ ...fields, user_id: req.user.id }, { transaction });
+      if (req.body.add_to_tackle_box) {
+        await TackleBox.create({ user_id: req.user.id, lure_id: lure.id }, { transaction });
+      }
+      return lure;
     });
-
     return res.status(201).json(newLure);
   } catch (error) {
     if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({ error: "Lure already exists" });
     }
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "Unable to create lure. Please try again." });
   }
 };
 
 const editLure = async (req, res) => {
   try {
-    const lureId = parseInt(req.params.lureId, 10);
-    const { brand, name, color, size } = req.body;
-
+    const lureId = Number(req.params.lureId);
+    if (!Number.isSafeInteger(lureId) || lureId <= 0) return res.status(400).json({ error: "Invalid lure ID." });
+    const fields = validatedFields(req.body);
+    if (!fields) return res.status(400).json({ error: "Brand, name, color, and size are required." });
     const lure = await Lure.findByPk(lureId);
-    if (!lure) {
-      return res.status(404).json({ error: "Lure not found" });
-    }
-
-    lure.brand = brand || lure.brand;
-    lure.name = name || lure.name;
-    lure.color = color || lure.color;
-    lure.size = size || lure.size;
-
+    if (!lure) return res.status(404).json({ error: "Lure not found" });
+    Object.assign(lure, fields);
     await lure.save();
-
     return res.status(200).json(lure);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "Unable to update lure. Please try again." });
   }
 };
 

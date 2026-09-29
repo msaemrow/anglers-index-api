@@ -10,6 +10,7 @@ const {
 } = require("../controllers/lureController");
 
 const {
+  addUserToReq,
   loginRequired,
   adminRequired,
   tokenRequired,
@@ -125,7 +126,21 @@ router.get("/:lureId", getLureById);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Lure'
+ *             type: object
+ *             required: [brand, name, color, size]
+ *             properties:
+ *               brand:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               color:
+ *                 type: string
+ *               size:
+ *                 type: string
+ *               add_to_tackle_box:
+ *                 type: boolean
+ *                 default: false
+ *                 description: Create the lure and add it to the authenticated user's tackle box atomically.
  *     responses:
  *       201:
  *         description: Lure created successfully
@@ -135,16 +150,18 @@ router.get("/:lureId", getLureById);
  *               $ref: '#/components/schemas/Lure'
  *       400:
  *         description: Missing required fields or lure already exists
+ *       401:
+ *         description: Login required
  *       500:
  *         description: Server error
  */
-router.post("/", addLure);
+router.post("/", addUserToReq, loginRequired, addLure);
 
 /**
  * @openapi
- * /lures/edit/{lureId}:
+ * /lures/{lureId}:
  *   put:
- *     summary: Edit a lure by ID
+ *     summary: Edit a lure by ID (admin only)
  *     tags:
  *       - Lures
  *     security:
@@ -183,7 +200,7 @@ router.post("/", addLure);
  *       500:
  *         description: Server error
  */
-router.put("/:lureId", editLure);
+router.put("/:lureId", addUserToReq, adminRequired, editLure);
 
 /**
  * @openapi

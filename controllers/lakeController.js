@@ -46,7 +46,7 @@ async function getLakes(req, res) {
     if (nearest_town) whereClause.nearest_town = nearest_town;
     if (name) whereClause.name = name;
 
-    const lakes = await Lake.findAll({ where: whereClause });
+    const lakes = await Lake.findAll({ where: whereClause, order: [["name", "ASC"], ["id", "ASC"]] });
     return res.status(200).json(lakes);
   } catch (error) {
     console.error(error);
@@ -108,7 +108,7 @@ async function addLake(req, res) {
 // Controller: delete a lake
 async function deleteLake(req, res) {
   try {
-    const lakeId = req.params.lake_id;
+    const lakeId = req.params.lakeId;
     const lake = await Lake.findByPk(lakeId);
 
     if (!lake) {
@@ -126,7 +126,7 @@ async function deleteLake(req, res) {
 // Controller: update a lake
 async function updateLake(req, res) {
   try {
-    const lakeId = req.params.lake_id;
+    const lakeId = req.params.lakeId;
     const lake = await Lake.findByPk(lakeId);
 
     if (!lake) {

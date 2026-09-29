@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const lakeController = require("../controllers/lakeController");
 const {
-  loginRequired,
+  addUserToReq,
   adminRequired,
 } = require("../middleware/authMiddleware");
 
@@ -112,7 +112,7 @@ router.get("/:lakeId", lakeController.getLakeById);
  *       500:
  *         description: Server error
  */
-router.post("/", lakeController.addLake);
+router.post("/", addUserToReq, adminRequired, lakeController.addLake);
 
 /**
  * @openapi
@@ -150,7 +150,7 @@ router.post("/", lakeController.addLake);
  *       500:
  *         description: Server error
  */
-router.put("/:lakeId", adminRequired, lakeController.updateLake);
+router.put("/:lakeId", addUserToReq, adminRequired, lakeController.updateLake);
 
 /**
  * @openapi
@@ -184,6 +184,6 @@ router.put("/:lakeId", adminRequired, lakeController.updateLake);
  *       500:
  *         description: Server error
  */
-router.delete("/:lakeId", adminRequired, lakeController.deleteLake);
+router.delete("/:lakeId", addUserToReq, adminRequired, lakeController.deleteLake);
 
 module.exports = router;
