@@ -4,6 +4,11 @@ const axios = require("axios");
 const { Lake } = require("../models");
 const { Op } = require("sequelize");
 
+function validCoordinate(value, limit) {
+  return (typeof value === "number" || typeof value === "string") &&
+    String(value).trim() !== "" && Number.isFinite(Number(value)) && Math.abs(Number(value)) <= limit;
+}
+
 // Helper: get lat/long from OpenWeatherMap API
 async function getLakeLatLong(nearest_town, state) {
   const API_KEY = process.env.WEATHER_API_KEY;
@@ -74,9 +79,13 @@ async function getLakeById(req, res) {
 // Controller: add new lake
 async function addLake(req, res) {
   try {
-    const { name, state, nearest_town, county } = req.body;
-
-    const coords = await getLakeLatLong(nearest_town, state);
+    const { name, state, nearest_town, county, latitude, longitude } = req.body;
+    const hasCoordinates = latitude !== undefined || longitude !== undefined;
+    if (hasCoordinates && (!validCoordinate(latitude, 90) || !validCoordinate(longitude, 180)))
+      return res.status(400).json({ error: "Provide a latitude from -90 to 90 and a longitude from -180 to 180." });
+    const coords = hasCoordinates
+      ? { lat: Number(latitude), lon: Number(longitude) }
+      : await getLakeLatLong(nearest_town, state);
     if (coords.error) {
       return res.status(400).json(coords);
     }
@@ -135,13 +144,16 @@ async function updateLake(req, res) {
 
     const { name, state, nearest_town, county, latitude, longitude } = req.body;
 
+    if ((latitude !== undefined && !validCoordinate(latitude, 90)) ||
+        (longitude !== undefined && !validCoordinate(longitude, 180)))
+      return res.status(400).json({ error: "Provide a latitude from -90 to 90 and a longitude from -180 to 180." });
     // Update only provided fields
     if (name !== undefined) lake.name = name;
     if (state !== undefined) lake.state = state;
     if (nearest_town !== undefined) lake.nearest_town = nearest_town;
     if (county !== undefined) lake.county = county;
-    if (latitude !== undefined) lake.latitude = latitude;
-    if (longitude !== undefined) lake.longitude = longitude;
+    if (latitude !== undefined) lake.latitude = Number(latitude);
+    if (longitude !== undefined) lake.longitude = Number(longitude);
 
     await lake.save();
 

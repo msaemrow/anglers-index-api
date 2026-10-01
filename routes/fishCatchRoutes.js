@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { addUserToReq, loginRequired } = require("../middleware/authMiddleware");
 const fishCatchController = require("../controllers/fishCatchController");
 
 /**
@@ -157,7 +158,7 @@ router.patch("/:catch_id", fishCatchController.updateFishCatch);
  *       400:
  *         description: Invalid request data
  */
-router.post("/", fishCatchController.createFishCatch);
+router.post("/", addUserToReq, loginRequired, fishCatchController.createFishCatch);
 
 /**
  * @openapi

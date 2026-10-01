@@ -7,6 +7,7 @@ const masterAnglerController = require("../controllers/masterAnglerController");
 const {
   adminRequired,
   loginRequired,
+  addUserToReq,
 } = require("../middleware/authMiddleware");
 
 /**
@@ -123,15 +124,15 @@ router.post(
 
 /**
  * @openapi
- * /master-angler/{id}/certificate:
+ * /masterangler/{id}/certificate:
  *   post:
  *     summary: Generate a certificate for a catch
  *     tags: [Master Angler]
  */
 router.post(
   "/:id/certificate",
+  addUserToReq,
   loginRequired,
-  adminRequired,
   masterAnglerController.generateCertificate
 );
 

@@ -225,11 +225,37 @@ exports.uploadPhoto = async (req, res) => {
 };
 
 /**
- * POST /master-angler/:id/certificate
- * TODO: PDF generation
+ * POST /masterangler/:id/certificate
+ * The ID is a fish catch ID. Reviews are not required at this stage.
  */
 exports.generateCertificate = async (req, res) => {
-  return res
-    .status(501)
-    .json({ error: "PDF certificate generation not implemented" });
+  if (!req.user) return res.status(401).json({ error: "Please sign in to generate a certificate." });
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0)
+    return res.status(400).json({ error: "A valid catch ID is required." });
+  try {
+    const fish = await FishCatch.findByPk(id, {
+      include: [
+        { model: User, as: "user", attributes: ["first_name", "last_name", "username"] },
+        { model: Species, as: "species", attributes: ["name"] },
+        { model: Lake, as: "lake", attributes: ["name", "county", "state"] },
+      ],
+    });
+    if (!fish) return res.status(404).json({ error: "Fish catch not found." });
+    if (String(fish.user_id) !== String(req.user.id) && !req.user.is_admin)
+      return res.status(403).json({ error: "You can only generate certificates for your own catches." });
+    if (fish.master_angler !== true)
+      return res.status(403).json({ error: "This catch is not marked as a Master Angler catch." });
+    const { createMasterAnglerCertificate } = require("../services/masterAnglerCertificate");
+    const pdf = await createMasterAnglerCertificate(fish);
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="master_angler_${id}_certificate.pdf"`,
+      "Cache-Control": "no-store",
+    });
+    return res.status(200).send(pdf);
+  } catch (error) {
+    console.error("Certificate generation failed:", error);
+    return res.status(500).json({ error: "Unable to generate the certificate. Please try again." });
+  }
 };

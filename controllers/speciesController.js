@@ -89,7 +89,7 @@ exports.addFishSpecies = async (req, res) => {
   }
 
   try {
-    const newSpecies = await FishSpecies.addSpecies(name, master_angler_length);
+    const newSpecies = await Species.addSpecies(name, master_angler_length);
     return res.status(201).json(newSpecies);
   } catch (error) {
     if (error.name === "SequelizeUniqueConstraintError") {
