@@ -26,120 +26,48 @@ const bucketName = "anglers-index";
  *  - reviewed
  *  - species_id
  */
+const { DENIAL_REASONS, isEligible } = require("../services/masterAnglerReview");
 exports.getAllMasterAnglerCatches = async (req, res) => {
   try {
-    const { user_id, reviewed, species_id } = req.query;
-
-    const where = {};
-
-    if (user_id) where.user_id = user_id;
-    if (reviewed !== undefined) where.reviewed = reviewed === "true";
-    if (species_id) where["$catch.species_id$"] = species_id;
-
     const submissions = await MasterAngler.findAll({
-      where,
-      order: [["createdAt", "DESC"]],
+      where: { status: "pending" },
       include: [
-        { model: User, as: "user" },
-        {
-          model: FishCatch,
-          as: "catch",
-          include: [
-            { model: Species, as: "species" },
-            { model: Lake, as: "lake" },
-            { model: Lure, as: "lure" },
-          ],
-        },
-      ],
+        { model: User, as: "user", attributes: ["id", "username", "first_name", "last_name"] },
+        { model: FishCatch, as: "catch", required: true, include: [
+          { model: Species, as: "species" }, { model: Lake, as: "lake" }, { model: Lure, as: "lure" },
+        ] },
+      ], order: [["createdAt", "ASC"], ["id", "ASC"]],
     });
-
-    return res.status(200).json(submissions);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
+    return res.json({ items: submissions, denialReasons: DENIAL_REASONS });
+  } catch (error) { return res.status(500).json({ error: "Unable to load Master Angler reviews." }); }
 };
-
-/**
- * POST /master-angler
- * Create a new submission
- */
 exports.submitMasterAngler = async (req, res) => {
-  const { user_id, catch_id } = req.body;
-
-  if (!user_id || !catch_id) {
-    return res.status(400).json({ error: "user_id and catch_id are required" });
-  }
-
-  try {
-    const fishCatch = await FishCatch.findByPk(catch_id);
-    if (!fishCatch) {
-      return res.status(404).json({ error: "Fish catch not found" });
-    }
-
-    const submission = await MasterAngler.create({
-      user_id,
-      catch_id,
-      reviewed: false,
-    });
-
-    return res.status(201).json(submission);
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      return res.status(400).json({
-        error: err.errors.map((e) => e.message),
-      });
-    }
-
-    return res.status(500).json({ error: err.message });
-  }
+  // Catch creation/editing automatically queues eligible catches.
+  return res.status(400).json({ error: "Eligible catches are submitted automatically when saved." });
 };
-
-/**
- * PATCH /master-angler/:id
- * Unified update method for:
- *  - reviewed flag
- *  - witness update
- *  - fish_image update
- */
 exports.updateMasterAnglerSubmission = async (req, res) => {
-  const { id } = req.params;
-  const { reviewed, witness, photo_url } = req.body;
-
+  const { status, denial_reason } = req.body;
+  if (!["approved", "denied"].includes(status) || (status === "denied" && !DENIAL_REASONS.includes(denial_reason)))
+    return res.status(400).json({ error: "Select approved or denied and a valid denial reason." });
+  const { sequelize } = require("../models");
   try {
-    const submission = await MasterAngler.findByPk(id, {
-      include: [{ model: FishCatch, as: "catch" }],
+    const result = await sequelize.transaction(async transaction => {
+      // Lock the catch first, in the same order as catch edits.
+      const entry = await MasterAngler.findByPk(req.params.id, { transaction });
+      if (!entry) return { code: 404, error: "Submission not found." };
+      const fish = await FishCatch.findByPk(entry.catch_id, { transaction,
+        include: [{ model: Species, as: "species" }], lock: { level: transaction.LOCK.UPDATE, of: FishCatch } });
+      const submission = await MasterAngler.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!submission || submission.status !== "pending") return { code: 409, error: "This catch has already been reviewed or changed. Refresh the queue." };
+      if (!fish || !isEligible(fish)) return { code: 409, error: "This catch no longer meets the eligibility requirements." };
+      await fish.update({ master_angler: status === "approved" }, { transaction });
+      await submission.update({ status, denial_reason: status === "denied" ? denial_reason : null,
+        reviewed: true, reviewed_by: req.user.id, reviewed_at: new Date() }, { transaction });
+      return { submission };
     });
-
-    if (!submission) {
-      return res.status(404).json({ error: "Submission not found" });
-    }
-
-    // Update submission fields
-    if (typeof reviewed !== "undefined") {
-      submission.reviewed = reviewed;
-      await submission.save();
-    }
-
-    // Update catch metadata if provided
-    if (witness || photo_url) {
-      const fishCatch = submission.catch;
-
-      if (!fishCatch) {
-        return res.status(400).json({
-          error: "Catch data missing for this submission",
-        });
-      }
-
-      if (witness) fishCatch.witness = witness;
-      if (photo_url) fishCatch.fish_image = photo_url;
-
-      await fishCatch.save();
-    }
-
-    return res.status(200).json({ message: "Updated successfully" });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
+    if (result.error) return res.status(result.code).json({ error: result.error });
+    return res.json(result.submission);
+  } catch (error) { return res.status(500).json({ error: "Unable to save the review." }); }
 };
 
 /**
@@ -150,7 +78,7 @@ exports.getApprovedSubmissionsByUser = async (req, res) => {
 
   try {
     const submissions = await MasterAngler.findAll({
-      where: { user_id, reviewed: true },
+      where: { user_id, status: "approved" },
       include: [{ model: FishCatch, as: "catch" }],
       order: [["createdAt", "DESC"]],
     });
@@ -226,7 +154,7 @@ exports.uploadPhoto = async (req, res) => {
 
 /**
  * POST /masterangler/:id/certificate
- * The ID is a fish catch ID. Reviews are not required at this stage.
+ * The ID is a fish catch ID. An approved review is required.
  */
 exports.generateCertificate = async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Please sign in to generate a certificate." });
@@ -246,6 +174,8 @@ exports.generateCertificate = async (req, res) => {
       return res.status(403).json({ error: "You can only generate certificates for your own catches." });
     if (fish.master_angler !== true)
       return res.status(403).json({ error: "This catch is not marked as a Master Angler catch." });
+    const approved = await MasterAngler.findOne({ where: { catch_id: id, user_id: fish.user_id, status: "approved" } });
+    if (!approved) return res.status(403).json({ error: "This catch must be reviewed and approved before generating a certificate." });
     const { createMasterAnglerCertificate } = require("../services/masterAnglerCertificate");
     const pdf = await createMasterAnglerCertificate(fish);
     res.set({

@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const source = fs.readFileSync(require.resolve('../controllers/fishCatchController'), 'utf8');
 async function run(query) {
   let options;
-  const context = { module: { exports: {} }, require: name => name === '../models' ? { FishCatch: { findAll: async value => { options = value; return [{ id: 7 }]; } } } : {} };
+  const context = { module: { exports: {} }, require: name => name === '../models' ? { FishCatch: { findAll: async value => { options = value; return [{ id: 7, toJSON: () => ({ id: 7 }) }]; } } } : name === '../services/masterAnglerReview' ? require('../services/masterAnglerReview') : {} };
   vm.runInNewContext(source, context);
   const response = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   await context.module.exports.getAllFishCatches({ query }, response);

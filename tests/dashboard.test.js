@@ -6,13 +6,13 @@ const source = fs.readFileSync(require.resolve('../controllers/dashboardControll
 
 function setup({ admin = false, empty = false, fail = false } = {}) {
   const calls = [];
-  const row = { id: 7, toJSON: () => ({ id: 7 }) };
+  const row = { id: 7, toJSON: () => ({ id: 7, masterAnglerEntries: [{ status: 'approved' }] }) };
   const models = {
     FishCatch: {
       count: async options => {
         calls.push(['count', options]);
         if (fail) throw Error('database offline');
-        return empty ? 0 : options.distinct ? 3 : options.where.master_angler ? 8 : 40;
+        return empty ? 0 : options.col === 'lake_id' ? 3 : options.include ? 8 : 40;
       },
       findAll: async options => { calls.push(['preview', options]); return empty ? [] : [row]; },
     },
@@ -21,7 +21,7 @@ function setup({ admin = false, empty = false, fail = false } = {}) {
       findAll: async options => { calls.push(['approved', options]); return [{ catch_id: 7 }]; },
     },
   };
-  const context = { exports: {}, require: name => name === '../models' ? models : { Op: { in: Symbol.for('in') } }, console: { error() {} } };
+  const context = { exports: {}, require: name => name === '../models' ? models : require(name), console: { error() {} } };
   vm.runInNewContext(source, context);
   const response = { statusCode: 200, set() {}, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
   return { calls, response, run: () => context.exports.getDashboard({ user: { id: 42, is_admin: admin }, query: { user_id: 999 } }, response) };
@@ -43,7 +43,7 @@ test('scopes counts/previews to authenticated user and bounds previews', async (
 test('admin receives bounded pending preview and full total', async () => {
   const { run, calls, response } = setup({ admin: true }); await run();
   const options = calls.find(([kind]) => kind === 'pending')[1];
-  assert.equal(options.limit, 5); assert.equal(options.where.reviewed, false);
+  assert.equal(options.limit, 5); assert.equal(options.where.status, 'pending');
   assert.equal(response.body.pendingReviews.total, 12);
 });
 test('empty history returns successful zero totals without approval query', async () => {

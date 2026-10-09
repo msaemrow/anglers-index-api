@@ -34,6 +34,7 @@ const {
  */
 router.post(
   "/",
+  addUserToReq,
   loginRequired,
   adminRequired,
   masterAnglerController.submitMasterAngler
@@ -68,7 +69,7 @@ router.post(
  *               items:
  *                 $ref: "#/components/schemas/MasterAngler"
  */
-router.get("/", masterAnglerController.getAllMasterAnglerCatches);
+router.get("/", addUserToReq, loginRequired, adminRequired, masterAnglerController.getAllMasterAnglerCatches);
 
 /**
  * @openapi
@@ -102,6 +103,7 @@ router.get("/", masterAnglerController.getAllMasterAnglerCatches);
  */
 router.patch(
   "/:id",
+  addUserToReq,
   loginRequired,
   adminRequired,
   masterAnglerController.updateMasterAnglerSubmission
@@ -116,6 +118,7 @@ router.patch(
  */
 router.post(
   "/:id/photo",
+  addUserToReq,
   loginRequired,
   adminRequired,
   upload.single("file"),

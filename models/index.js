@@ -25,9 +25,11 @@ const Lake = require("./Lake")(sequelize);
 const Lure = require("./Lure")(sequelize);
 const Species = require("./Species")(sequelize);
 const MasterAngler = require("./MasterAngler")(sequelize);
+const Trip = require("./Trip")(sequelize);
 const TackleBox = require("./TackleBox")(sequelize);
 
 // Store in db object so migrations can see them
+db.Trip = Trip;
 db.User = User;
 db.FishCatch = FishCatch;
 db.Lake = Lake;
@@ -39,6 +41,12 @@ db.TackleBox = TackleBox;
 // ---------------------------------------------
 // 3️⃣ Associations (same as your old file)
 // ---------------------------------------------
+
+User.hasMany(Trip, { foreignKey: "user_id", as: "trips" });
+Trip.belongsTo(User, { foreignKey: "user_id", as: "user" });
+Trip.belongsTo(Lake, { foreignKey: "lake_id", as: "lake" });
+Trip.hasMany(FishCatch, { foreignKey: "trip_id", as: "catches" });
+FishCatch.belongsTo(Trip, { foreignKey: "trip_id", as: "trip" });
 
 // User - FishCatch
 User.hasMany(FishCatch, { foreignKey: "user_id", as: "fishCatches" });

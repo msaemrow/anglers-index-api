@@ -1,0 +1,10 @@
+const router = require('express').Router();
+const { addUserToReq, loginRequired } = require('../middleware/authMiddleware');
+const controller = require('../controllers/tripController');
+router.use(addUserToReq, loginRequired);
+router.get('/', controller.listTrips);
+router.post('/', controller.createTrip);
+router.get('/:id', controller.getTrip);
+router.delete('/:id', controller.deleteTrip);
+router.post('/:id/catches', controller.attachCatch);
+module.exports = router;

@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const { addUserToReq, loginRequired } = require("../middleware/authMiddleware");
 const fishCatchController = require("../controllers/fishCatchController");
+const { getCatchAnalysis } = require("../controllers/catchAnalysisController");
+router.get("/analysis", addUserToReq, loginRequired, getCatchAnalysis);
 
 /**
  * @openapi
@@ -133,7 +135,7 @@ router.get("/:catch_id", fishCatchController.getFishCatchById);
  *       404:
  *         description: Fish catch not found
  */
-router.patch("/:catch_id", fishCatchController.updateFishCatch);
+router.patch("/:catch_id", addUserToReq, loginRequired, fishCatchController.updateFishCatch);
 
 /**
  * @openapi
@@ -180,7 +182,7 @@ router.post("/", addUserToReq, loginRequired, fishCatchController.createFishCatc
  *       404:
  *         description: Fish catch not found
  */
-router.delete("/:catch_id", fishCatchController.deleteFishCatch);
+router.delete("/:catch_id", addUserToReq, loginRequired, fishCatchController.deleteFishCatch);
 
 /**
  * @openapi

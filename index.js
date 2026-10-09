@@ -67,6 +67,7 @@ app.use("/lakes", lakeRoutes);
 app.use("/species", fishSpeciesRoutes);
 app.use("/masterangler", masterAnglerRoutes);
 app.use("/tackle-box", tackleBoxRoutes);
+app.use("/trips", require("./routes/tripRoutes"));
 
 // Basic routes
 app.get("/", (req, res) => {

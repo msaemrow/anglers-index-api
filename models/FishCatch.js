@@ -11,6 +11,8 @@ module.exports = (sequelize) => {
         autoIncrement: true,
       },
 
+      trip_id: { type: DataTypes.INTEGER, allowNull: true },
+
       species_id: {
         type: DataTypes.INTEGER,
         allowNull: false,

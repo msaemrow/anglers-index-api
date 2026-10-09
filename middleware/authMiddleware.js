@@ -42,7 +42,7 @@ function loginRequired(req, res, next) {
 // Middleware to require admin user
 function adminRequired(req, res, next) {
   if (!req.user || !req.user.is_admin) {
-    return res.status(401).json({ error: "Unauthorized. Must be an admin." });
+    return res.status(403).json({ error: "Unauthorized. Must be an admin." });
   }
   next();
 }

@@ -4,11 +4,16 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync(require.resolve('../controllers/fishCatchController'), 'utf8');
 const valid = { species_id: 1, lake_id: 2, lure_id: 3, length: 0, weight: 2.5, date: '2026-09-29', time: '10:30:00', timestamp: 1790695800 };
-async function run(body, user = { id: 42 }, { weatherFails = false, lakeExists = true } = {}) {
+async function run(body, user = { id: 42 }, { weatherFails = false, lakeExists = true, trip = null } = {}) {
   let weatherRequest;
   let created;
+  let createdTrip;
   const context = { console: { warn() {} }, exports: {}, module: { exports: {} }, require: name => {
+    if (name === '../services/masterAnglerReview') return { ...require('../services/masterAnglerReview'), syncSubmission: async () => {} };
+    if (name === '../services/trips') return require('../services/trips');
     if (name === '../models') return {
+      Trip: { findOne: async options => trip && String(options.where.user_id) === String(trip.user_id) ? trip : null, create: async fields => { createdTrip = fields; return { id: 55, ...fields }; } },
+      sequelize: { transaction: async fn => fn({ LOCK: { UPDATE: 'UPDATE' } }) },
       Lake: { findByPk: async id => lakeExists ? { id, latitude: 42, longitude: -93 } : null },
       FishCatch: { create: async fields => { created = fields; return { toJSON: () => ({ id: 7, ...fields }) }; } },
     };
@@ -22,7 +27,7 @@ async function run(body, user = { id: 42 }, { weatherFails = false, lakeExists =
   vm.runInNewContext(source, context);
   const response = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   await context.module.exports.createFishCatch({ body, user }, response);
-  return { response, created, weatherRequest };
+  return { response, created, createdTrip, weatherRequest };
 }
 test('new catch uses authenticated ownership, timestamp, and the correct photo field', async () => {
   const { response, created } = await run({ ...valid, user_id: 999, fish_image: '/photo.jpg' });
@@ -71,4 +76,39 @@ test('a missing lake does not trigger weather lookup or catch creation', async (
   assert.equal(response.code, 400);
   assert.equal(created, undefined);
   assert.equal(weatherRequest, undefined);
+});
+
+test('trip catches are validated before insertion and retain their trip ID', async () => {
+  const trip = { id: 5, user_id: 42, lake_id: 2, start_date: valid.date, end_date: valid.date, status: 'active' };
+  const accepted = await run({ ...valid, trip_id: 5 }, { id: 42 }, { trip });
+  assert.equal(accepted.response.code, 201);
+  assert.equal(accepted.created.trip_id, 5);
+  for (const patch of [{ user_id: 99 }, { lake_id: 99 }, { start_date: '2026-09-30' }, { end_date: '2026-09-28' }]) {
+    const rejected = await run({ ...valid, trip_id: 5 }, { id: 42 }, { trip: { ...trip, ...patch } });
+    assert.equal(rejected.response.code, 400); assert.equal(rejected.created, undefined);
+  }
+});
+
+test('starts a trip and links its first catch with authenticated ownership and matching lake', async () => {
+  const result = await run({ ...valid, new_trip: { start_date: valid.date, single_day: true }, user_id: 999 });
+  assert.equal(result.response.code, 201);
+  assert.equal(result.createdTrip.user_id, 42);
+  assert.equal(result.createdTrip.lake_id, valid.lake_id);
+  assert.equal(result.createdTrip.start_date, valid.date);
+  assert.equal(result.createdTrip.end_date, valid.date);
+  assert.equal(result.createdTrip.status, undefined);
+  assert.equal(result.created.trip_id, 55);
+});
+test('rejects invalid inline trip starts before creating either record', async () => {
+  for (const patch of [
+    { new_trip: { start_date: 'invalid', single_day: true } },
+    { new_trip: { start_date: '2026-09-30', single_day: true } },
+    { new_trip: { start_date: '2026-02-30', single_day: true } },
+    { new_trip: { start_date: valid.date, single_day: true }, trip_id: 5 },
+  ]) {
+    const result = await run({ ...valid, ...patch });
+    assert.equal(result.response.code, 400);
+    assert.equal(result.created, undefined);
+    assert.equal(result.createdTrip, undefined);
+  }
 });

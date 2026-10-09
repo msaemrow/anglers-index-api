@@ -3,10 +3,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync(require.resolve('../controllers/masterAnglerController'), 'utf8');
-function setup({ fish = { id: 42, user_id: 7, master_angler: true }, user = { id: 7 }, id = '42', fail = false } = {}) {
+function setup({ fish = { id: 42, user_id: 7, master_angler: true }, user = { id: 7 }, id = '42', fail = false, approved = true } = {}) {
   let generated = 0;
   let queried = 0;
-  const models = { FishCatch: { findByPk: async catchId => { queried++; assert.equal(catchId, 42); return fish; } } };
+  const models = { MasterAngler: { findOne: async options => { assert.equal(options.where.status, "approved"); return approved ? { status: "approved" } : null; } }, FishCatch: { findByPk: async catchId => { queried++; assert.equal(catchId, 42); return fish; } } };
   const context = { exports: {}, process: { env: {} }, console: { error() {} }, require: name => {
     if (name === '../models') return models;
     if (name === 'aws-sdk') return { S3: class {} };
@@ -17,7 +17,7 @@ function setup({ fish = { id: 42, user_id: 7, master_angler: true }, user = { id
   const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; }, set(headers) { this.headers = headers; }, send(body) { this.body = body; return this; } };
   return { res, counts: () => ({ generated, queried }), run: () => context.exports.generateCertificate({ user, params: { id } }, res) };
 }
-test('owner downloads a flagged catch without a review', async () => {
+test('owner downloads a catch after approval', async () => {
   const { run, res, counts } = setup(); await run();
   assert.equal(res.code, 200);
   assert.ok(Buffer.isBuffer(res.body));
@@ -56,4 +56,11 @@ test('certificate route authenticates the token and allows non-admin owners', ()
   } };
   vm.runInNewContext(fs.readFileSync(require.resolve('../routes/masterAnglerRoutes'), 'utf8'), context);
   assert.deepEqual(registrations.find(args => args[0] === '/:id/certificate').slice(1), [auth.addUserToReq, auth.loginRequired, controller.generateCertificate]);
+});
+
+test('eligible catch cannot generate a certificate before approval, including admins', async () => {
+  for (const user of [{ id: 7 }, { id: 99, is_admin: true }]) {
+    const { run, res, counts } = setup({ user, approved: false }); await run();
+    assert.equal(res.code, 403); assert.equal(counts().generated, 0);
+  }
 });

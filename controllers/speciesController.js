@@ -1,4 +1,4 @@
-const { Species, FishCatch } = require("../models");
+const { Species, FishCatch, MasterAngler, sequelize } = require("../models");
 const { ValidationError } = require("sequelize");
 const { Op } = require("sequelize");
 
@@ -45,6 +45,12 @@ exports.getAllFishSpecies = async (req, res) => {
     // Transform data if includeCaughtSpecies is true
     let result = species;
     if (includeCaughtSpecies === "true" && userId) {
+      const catchIds = species.flatMap(sp => (sp.toJSON().fishCatches || []).map(c => c.id));
+      const reviews = catchIds.length ? await MasterAngler.findAll({
+        where: { catch_id: { [Op.in]: catchIds } }, attributes: ["catch_id", "status"], order: [["id", "DESC"]], raw: true,
+      }) : [];
+      const statuses = new Map();
+      for (const review of reviews) if (!statuses.has(review.catch_id)) statuses.set(review.catch_id, review.status);
       result = species.map((sp) => {
         const speciesData = sp.toJSON();
 
@@ -64,9 +70,8 @@ exports.getAllFishSpecies = async (req, res) => {
                 date: biggestCatch.date,
               }
             : null,
-          approved_master_angler: biggestCatch
-            ? biggestCatch.master_angler
-            : false,
+          master_angler_status: biggestCatch ? statuses.get(biggestCatch.id) || "not_eligible" : "not_eligible",
+          approved_master_angler: biggestCatch ? statuses.get(biggestCatch.id) === "approved" : false,
           fishCatches: undefined, // Remove the catches array from response
         };
       });
@@ -109,10 +114,18 @@ exports.updateFishSpecies = async (req, res) => {
   }
 
   try {
-    const updatedSpecies = await FishSpecies.updateMasterAnglerLength(
-      speciesId,
-      master_angler_length
-    );
+    const length = Number(master_angler_length);
+    if (master_angler_length === null || String(master_angler_length).trim() === "" || !Number.isFinite(length) || length < 0)
+      return res.status(400).json({ error: "Master Angler length must be a nonnegative number." });
+    const updatedSpecies = await sequelize.transaction(async transaction => {
+      const species = await Species.findByPk(speciesId, { transaction });
+      if (!species) throw new Error("Species not found");
+      await species.update({ master_angler_length: length }, { transaction });
+      const catches = await FishCatch.findAll({ where: { species_id: speciesId }, order: [["id", "ASC"]], transaction, lock: transaction.LOCK.UPDATE });
+      const { syncSubmission } = require("../services/masterAnglerReview");
+      for (const fish of catches) await syncSubmission(fish, transaction, { preserveApproval: true, species });
+      return species;
+    });
     return res.status(200).json(updatedSpecies);
   } catch (error) {
     if (error.message === "Species not found") {

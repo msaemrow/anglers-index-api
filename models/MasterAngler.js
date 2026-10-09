@@ -17,6 +17,10 @@ module.exports = (sequelize) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
+      status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "not_eligible", validate: { isIn: [["not_eligible", "pending", "approved", "denied"]] } },
+      denial_reason: { type: DataTypes.TEXT },
+      reviewed_by: { type: DataTypes.INTEGER },
+      reviewed_at: { type: DataTypes.DATE },
       reviewed: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
