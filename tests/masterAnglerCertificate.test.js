@@ -9,7 +9,6 @@ function setup({ fish = { id: 42, user_id: 7, master_angler: true }, user = { id
   const models = { MasterAngler: { findOne: async options => { assert.equal(options.where.status, "approved"); return approved ? { status: "approved" } : null; } }, FishCatch: { findByPk: async catchId => { queried++; assert.equal(catchId, 42); return fish; } } };
   const context = { exports: {}, process: { env: {} }, console: { error() {} }, require: name => {
     if (name === '../models') return models;
-    if (name === 'aws-sdk') return { S3: class {} };
     if (name === '../services/masterAnglerCertificate') return { createMasterAnglerCertificate: async data => { generated++; assert.equal(data, fish); if (fail) throw Error('PDF failed'); return Buffer.from('%PDF-1.7'); } };
     return {};
   } };

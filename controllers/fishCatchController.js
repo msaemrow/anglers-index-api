@@ -147,6 +147,8 @@ const getFishCatchById = async (req, res) => {
 
 const createFishCatch = async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Unauthorized. Must be logged in." });
+  let photoKey;
+  let committed = false;
   try {
     const { lake_id, species_id, lure_id, weight, length, date, time, timestamp, fish_image, witness } = req.body;
     if (![lake_id, species_id, lure_id].every(value => Number.isSafeInteger(Number(value)) && Number(value) > 0))
@@ -160,6 +162,7 @@ const createFishCatch = async (req, res) => {
     const catchTimestamp = timestamp == null ? Math.floor(new Date(`${date}T${time}`).getTime() / 1000) : Number(timestamp);
     if (!Number.isInteger(catchTimestamp) || catchTimestamp < -2147483648 || catchTimestamp > 2147483647)
       return res.status(400).json({ error: "The catch date is outside the supported range." });
+    if (fish_image) return res.status(400).json({ error: "Upload a photo file instead of supplying a photo path." });
     const tripId = req.body.trip_id;
     const startingTrip = req.body.new_trip !== undefined;
     const tripRange = startingTrip && req.body.new_trip && typeof req.body.new_trip === "object" ? require("../services/trips").tripDates(req.body.new_trip) : null;
@@ -194,6 +197,7 @@ const createFishCatch = async (req, res) => {
       const error = require("../services/trips").tripCatchError(trip, { lake_id, date }, req.user.id);
       if (error) throw Object.assign(new Error(error), { status: 400 });
     }
+    if (req.photoBuffer) photoKey = await require("../services/catchPhotos").storePhoto(req.photoBuffer);
     const fish = await FishCatch.create({
       user_id: req.user.id,
       trip_id: assignedTripId,
@@ -202,23 +206,26 @@ const createFishCatch = async (req, res) => {
       timestamp: catchTimestamp,
       ...weather,
       witness: typeof witness === "string" ? witness.trim().slice(0, 75) : "NA",
-      fish_image: fish_image || "/static/images/stock-fish.jpg",
+      fish_image: photoKey || "",
     }, { transaction });
     review = await require("../services/masterAnglerReview").syncSubmission(fish, transaction);
     return fish;
     });
+    committed = true;
     const result = { ...newCatch.toJSON(), ...awardFields(newCatch, review), master_angler_review: review };
     if (weatherWarning) result.weather_warning = weatherWarning;
     return res.status(201).json(result);
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.status ? err.message : "Unable to save this catch." });
+  } finally {
+    if (photoKey && !committed) await require("../services/catchPhotos").removePhoto(photoKey);
   }
 };
 
 const updateFishCatch = async (req, res) => {
   try {
     const { catch_id } = req.params;
-    const allowed = ["species_id", "lake_id", "lure_id", "length", "weight", "date", "time", "timestamp", "witness", "fish_image"];
+    const allowed = ["species_id", "lake_id", "lure_id", "length", "weight", "date", "time", "timestamp", "witness"];
     if (Object.keys(req.body).some(key => !allowed.includes(key)))
       return res.status(400).json({ error: "Unsupported catch field. Award decisions require an admin review." });
     const result = await sequelize.transaction(async transaction => {
@@ -232,8 +239,6 @@ const updateFishCatch = async (req, res) => {
       }
       if (req.body.witness !== undefined && (typeof req.body.witness !== "string" || req.body.witness.length > 75))
         return { code: 400, error: "Witness must be a name of at most 75 characters." };
-      if (req.body.fish_image !== undefined && typeof req.body.fish_image !== "string")
-        return { code: 400, error: "Catch photo must be a URL or image path." };
       if (!Object.keys(req.body).length) {
         const review = await MasterAngler.findOne({ where: { catch_id: catchObj.id }, transaction });
         return { fish: catchObj, review };
@@ -266,6 +271,7 @@ const deleteFishCatch = async (req, res) => {
     if (String(catchObj.user_id) !== String(req.user.id) && !req.user.is_admin)
       return res.status(403).json({ error: "You can only delete your own catches." });
     await catchObj.destroy();
+    await require("../services/catchPhotos").removePhoto(catchObj.fish_image);
 
     return res
       .status(200)

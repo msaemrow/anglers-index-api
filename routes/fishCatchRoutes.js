@@ -2,6 +2,11 @@ const express = require("express");
 const router = express.Router();
 const { addUserToReq, loginRequired } = require("../middleware/authMiddleware");
 const fishCatchController = require("../controllers/fishCatchController");
+const catchPhotoUpload = require("../middleware/catchPhotoUpload");
+const catchPhotoController = require("../controllers/catchPhotoController");
+router.get("/:catch_id/photo", addUserToReq, loginRequired, catchPhotoController.getPhoto);
+router.post("/:catch_id/photo", addUserToReq, loginRequired, catchPhotoUpload, catchPhotoController.savePhoto);
+router.delete("/:catch_id/photo", addUserToReq, loginRequired, catchPhotoController.savePhoto);
 const { getCatchAnalysis } = require("../controllers/catchAnalysisController");
 router.get("/analysis", addUserToReq, loginRequired, getCatchAnalysis);
 
@@ -160,7 +165,7 @@ router.patch("/:catch_id", addUserToReq, loginRequired, fishCatchController.upda
  *       400:
  *         description: Invalid request data
  */
-router.post("/", addUserToReq, loginRequired, fishCatchController.createFishCatch);
+router.post("/", addUserToReq, loginRequired, catchPhotoUpload, fishCatchController.createFishCatch);
 
 /**
  * @openapi

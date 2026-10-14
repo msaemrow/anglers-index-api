@@ -1,7 +1,9 @@
 const PDFDocument = require("pdfkit");
 
 // Render from server-owned catch data; authorization belongs to the endpoint.
-function createMasterAnglerCertificate(fish) {
+async function createMasterAnglerCertificate(fish) {
+  const { isPhotoKey, readPhoto } = require("./catchPhotos");
+  const photo = isPhotoKey(fish.fish_image) ? await readPhoto(fish.fish_image) : null;
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: "LETTER", layout: "landscape", margin: 36,
@@ -13,19 +15,21 @@ function createMasterAnglerCertificate(fish) {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     const navy = "#082f6b";
     const gold = "#b18a3d";
-    const width = 648;
-    function centered(value, y, size, font = "Helvetica", color = navy) {
+    function centered(value, y, size, font = "Helvetica", color = navy, fullPage = false) {
+      const useDetailsColumn = photo && !fullPage;
+      const width = useDetailsColumn ? 390 : 648;
       const text = String(value).replace(/[\r\n\t]+/g, " ");
       doc.font(font).fontSize(size);
       while (doc.widthOfString(text) > width && size > 10) doc.fontSize(--size);
-      doc.fillColor(color).text(text, 72, y, { width, align: "center", lineBreak: false });
+      doc.fillColor(color).text(text, useDetailsColumn ? 330 : 72, y, { width, align: "center", lineBreak: false });
     }
     doc.rect(0, 0, 792, 612).fill("#fffdf8");
     doc.lineWidth(2).rect(28, 28, 736, 556).stroke(navy);
     doc.lineWidth(0.6).rect(35, 35, 722, 542).stroke(gold);
-    centered("ANGLERS INDEX", 65, 13, "Helvetica-Bold");
-    centered("Master Angler", 107, 40, "Times-Bold");
-    centered("CERTIFICATE OF ACHIEVEMENT", 160, 12, "Helvetica", gold);
+    if (photo) doc.image(photo, 62, 205, { fit: [245, 280], align: "center", valign: "center" });
+    centered("ANGLERS INDEX", 65, 13, "Helvetica-Bold", navy, true);
+    centered("Master Angler", 107, 40, "Times-Bold", navy, true);
+    centered("CERTIFICATE OF ACHIEVEMENT", 160, 12, "Helvetica", gold, true);
     doc.moveTo(276, 192).lineTo(516, 192).stroke(gold);
     centered("Presented to", 216, 13, "Helvetica", "#53657a");
     centered([fish.user?.first_name, fish.user?.last_name].filter(Boolean).join(" ") || fish.user?.username || "Angler", 245, 30, "Times-Bold");
@@ -41,7 +45,7 @@ function createMasterAnglerCertificate(fish) {
     centered(date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" }) : "Date not recorded", 420, 13, "Helvetica", "#53657a");
     if (fish.witness && !["NA", "N/A"].includes(fish.witness)) centered(`Witness: ${fish.witness}`, 456, 11, "Helvetica", "#53657a");
     doc.moveTo(120, 503).lineTo(672, 503).stroke(gold);
-    centered(`Anglers Index Master Angler Program  |  Catch #${fish.id}`, 522, 10, "Helvetica", "#53657a");
+    centered("Anglers Index Master Angler Program", 522, 10, "Helvetica", "#53657a", true);
     doc.end();
   });
 }

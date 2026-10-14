@@ -29,13 +29,13 @@ async function run(body, user = { id: 42 }, { weatherFails = false, lakeExists =
   await context.module.exports.createFishCatch({ body, user }, response);
   return { response, created, createdTrip, weatherRequest };
 }
-test('new catch uses authenticated ownership, timestamp, and the correct photo field', async () => {
-  const { response, created } = await run({ ...valid, user_id: 999, fish_image: '/photo.jpg' });
+test('new catch uses authenticated ownership, timestamp, and no fabricated photo', async () => {
+  const { response, created } = await run({ ...valid, user_id: 999 });
   assert.equal(response.code, 201);
   assert.equal(created.user_id, 42);
   assert.equal(created.timestamp, valid.timestamp);
   assert.equal(created.length, 0);
-  assert.equal(created.fish_image, '/photo.jpg');
+  assert.equal(created.fish_image, '');
 });
 test('unauthenticated and invalid catches never reach the database', async () => {
   assert.equal((await run(valid, null)).response.code, 401);
@@ -49,7 +49,7 @@ test('legacy date and time payloads receive a timestamp and default photo', asyn
   const { response, created } = await run({ ...valid, timestamp: undefined });
   assert.equal(response.code, 201);
   assert.ok(Number.isInteger(created.timestamp));
-  assert.equal(created.fish_image, '/static/images/stock-fish.jpg');
+  assert.equal(created.fish_image, '');
 });
 
 test('captures weather at the selected lake and catch instant, ignoring supplied weather', async () => {
@@ -110,5 +110,13 @@ test('rejects invalid inline trip starts before creating either record', async (
     assert.equal(result.response.code, 400);
     assert.equal(result.created, undefined);
     assert.equal(result.createdTrip, undefined);
+  }
+});
+
+test('photo URLs and storage keys cannot be supplied by the client', async () => {
+  for (const fish_image of ['https://example.com/fish.jpg', 'catches/11111111-1111-4111-8111-111111111111.jpg']) {
+    const result = await run({ ...valid, fish_image });
+    assert.equal(result.response.code, 400);
+    assert.equal(result.created, undefined);
   }
 });

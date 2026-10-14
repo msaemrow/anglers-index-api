@@ -7,18 +7,6 @@ const {
   Lure,
 } = require("../models");
 
-const AWS = require("aws-sdk");
-const path = require("path");
-const { ValidationError } = require("sequelize");
-
-const s3 = new AWS.S3({
-  region: process.env.AWS_REGION,
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-});
-
-const bucketName = "anglers-index";
-
 /**
  * GET /master-angler
  * Supports filtering by:
@@ -116,39 +104,6 @@ exports.getApprovedSubmissionsByUser = async (req, res) => {
     return res.status(200).json(results);
   } catch (err) {
     return res.status(500).json({ error: err.message });
-  }
-};
-
-/**
- * POST /master-angler/:id/photo
- * Upload photo to S3
- */
-exports.uploadPhoto = async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No file attached" });
-  }
-
-  const { id } = req.params;
-  const file = req.file;
-
-  const extension = path.extname(file.originalname);
-  const filename = `master_angler_${id}${extension}`;
-
-  try {
-    await s3
-      .putObject({
-        Bucket: bucketName,
-        Key: filename,
-        Body: file.buffer,
-        ACL: "public-read",
-      })
-      .promise();
-
-    const photoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${filename}`;
-
-    return res.status(200).json({ url: photoUrl });
-  } catch (err) {
-    return res.status(500).json({ error: "Error uploading file" });
   }
 };
 

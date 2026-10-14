@@ -12,7 +12,7 @@ function isEligible(fish, species = fish.species) {
     Number(fish.length) >= Number(species.master_angler_length) &&
     !!witness && !["na", "n/a", "none"].includes(witness.toLowerCase()) &&
     !!photo && !photo.includes("stock-fish.jpg") &&
-    (/^https?:\/\//i.test(photo) || (photo.startsWith("/") && !photo.startsWith("//")));
+    require("./catchPhotos").isPhotoKey(photo);
 }
 async function syncSubmission(fish, transaction, { preserveApproval = false, species } = {}) {
   const { MasterAngler, Species } = require("../models");

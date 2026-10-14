@@ -1,7 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
-const upload = multer();
 
 const masterAnglerController = require("../controllers/masterAnglerController");
 const {
@@ -107,22 +105,6 @@ router.patch(
   loginRequired,
   adminRequired,
   masterAnglerController.updateMasterAnglerSubmission
-);
-
-/**
- * @openapi
- * /master-angler/{id}/photo:
- *   post:
- *     summary: Upload a photo for a Master Angler catch
- *     tags: [Master Angler]
- */
-router.post(
-  "/:id/photo",
-  addUserToReq,
-  loginRequired,
-  adminRequired,
-  upload.single("file"),
-  masterAnglerController.uploadPhoto
 );
 
 /**

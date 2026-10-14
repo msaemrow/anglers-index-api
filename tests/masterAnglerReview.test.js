@@ -3,10 +3,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { isEligible, DENIAL_REASONS } = require('../services/masterAnglerReview');
-const fish = { id: 42, user_id: 7, length: 20, witness: 'Jane', fish_image: '/photos/fish.jpg', species: { master_angler_length: 20 } };
+const fish = { id: 42, user_id: 7, length: 20, witness: 'Jane', fish_image: 'catches/11111111-1111-4111-8111-111111111111.jpg', species: { master_angler_length: 20 } };
 test('eligibility requires length, a genuine witness entry, and a non-placeholder photo', () => {
   assert.equal(isEligible(fish), true);
-  for (const patch of [{ length: 19.9 }, { length: null }, { witness: ' NA ' }, { witness: '' }, { witness: 'n/a' }, { fish_image: '/static/images/stock-fish.jpg' }, { fish_image: '' }, { fish_image: 'javascript:alert(1)' }, { species: { master_angler_length: 0 } }])
+  for (const patch of [{ length: 19.9 }, { length: null }, { witness: ' NA ' }, { witness: '' }, { witness: 'n/a' }, { fish_image: '/static/images/stock-fish.jpg' }, { fish_image: '' }, { fish_image: 'https://example.com/photo.jpg' }, { fish_image: '/photos/fish.jpg' }, { fish_image: 'javascript:alert(1)' }, { species: { master_angler_length: 0 } }])
     assert.equal(isEligible({ ...fish, ...patch }), false);
 });
 function setup({ status = 'pending', eligible = true, missing = false } = {}) {
@@ -21,7 +21,6 @@ function setup({ status = 'pending', eligible = true, missing = false } = {}) {
   const context = { exports: {}, process: { env: {} }, require: name => {
     if (name === '../models') return models;
     if (name === '../services/masterAnglerReview') return { isEligible, DENIAL_REASONS };
-    if (name === 'aws-sdk') return { S3: class {} };
     return {};
   } };
   vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/masterAnglerController'), 'utf8'), context);
@@ -73,7 +72,7 @@ test('saving a denied catch preserves its decision and never requeues it', async
   let created = false;
   let deleted = false;
   let saved = false;
-  const context = { module: { exports: {} }, require: () => ({
+  const context = { module: { exports: {} }, require: name => name === './catchPhotos' ? require('../services/catchPhotos') : ({
     MasterAngler: {
       findOne: async () => ({ status: 'denied', denial_reason: DENIAL_REASONS[0] }),
       destroy: async () => { deleted = true; },
@@ -98,7 +97,7 @@ function syncSetup(previousStatus, overrides = {}) {
     update: async data => { updated = data; return { id: 1, ...data }; },
     destroy: async () => { archived = true; },
   } : null;
-  const context = { module: { exports: {} }, require: () => ({
+  const context = { module: { exports: {} }, require: name => name === './catchPhotos' ? require('../services/catchPhotos') : ({
     MasterAngler: {
       findOne: async () => previous,
       create: async data => { created = data; return { id: 2, ...data }; },
