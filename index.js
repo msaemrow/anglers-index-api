@@ -34,6 +34,7 @@ app.use(express.json()); // to parse JSON request bodies
 // Setup CORS
 const allowedOrigins = [
   "http://localhost:3000",
+  "http://192.168.4.24:8082",
   "https://anglers-index.vercel.app",
   "https://anglersindex.com",
   "https://www.anglersindex.com",
@@ -50,7 +51,7 @@ app.use(
       }
       return callback(null, true);
     },
-  })
+  }),
 );
 
 // The dashboard is scoped to the authenticated user, never a query-string user ID.
