@@ -1,9 +1,10 @@
 const { FishCatch, Lake, Species, MasterAngler } = require("../models");
-const { serializeAward } = require("../services/masterAnglerReview");
+const { serializeAward, reconcilePendingSubmissions } = require("../services/masterAnglerReview");
 
 // Fixed-size previews; lifetime totals are calculated in the database.
 exports.getDashboard = async (req, res) => {
   try {
+    await reconcilePendingSubmissions(req.user.is_admin ? {} : { userId: req.user.id });
     const where = { user_id: req.user.id };
     const awardInclude = status => ({ model: MasterAngler, as: "masterAnglerEntries", attributes: ["status"], where: { status }, required: true });
     const preview = {

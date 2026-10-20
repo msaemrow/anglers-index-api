@@ -14,9 +14,10 @@ const {
  *  - reviewed
  *  - species_id
  */
-const { DENIAL_REASONS, isEligible } = require("../services/masterAnglerReview");
+const { DENIAL_REASONS, eligibilityIssues, reconcilePendingSubmissions, markIneligible } = require("../services/masterAnglerReview");
 exports.getAllMasterAnglerCatches = async (req, res) => {
   try {
+    await reconcilePendingSubmissions();
     const submissions = await MasterAngler.findAll({
       where: { status: "pending" },
       include: [
@@ -47,7 +48,12 @@ exports.updateMasterAnglerSubmission = async (req, res) => {
         include: [{ model: Species, as: "species" }], lock: { level: transaction.LOCK.UPDATE, of: FishCatch } });
       const submission = await MasterAngler.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
       if (!submission || submission.status !== "pending") return { code: 409, error: "This catch has already been reviewed or changed. Refresh the queue." };
-      if (!fish || !isEligible(fish)) return { code: 409, error: "This catch no longer meets the eligibility requirements." };
+      if (!fish) return { code: 409, error: "This catch is no longer available. Refresh the queue." };
+      const issues = eligibilityIssues(fish);
+      if (issues.length) {
+        await markIneligible(fish, submission, transaction);
+        return { code: 409, error: `This catch is no longer eligible and has been removed from the review queue. ${issues.join(" ")}` };
+      }
       await fish.update({ master_angler: status === "approved" }, { transaction });
       await submission.update({ status, denial_reason: status === "denied" ? denial_reason : null,
         reviewed: true, reviewed_by: req.user.id, reviewed_at: new Date() }, { transaction });

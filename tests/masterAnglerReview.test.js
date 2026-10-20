@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const { isEligible, DENIAL_REASONS } = require('../services/masterAnglerReview');
+const { isEligible, eligibilityIssues, markIneligible, DENIAL_REASONS } = require('../services/masterAnglerReview');
 const fish = { id: 42, user_id: 7, length: 20, witness: 'Jane', fish_image: 'catches/11111111-1111-4111-8111-111111111111.jpg', species: { master_angler_length: 20 } };
 test('eligibility requires length, a genuine witness entry, and a non-placeholder photo', () => {
   assert.equal(isEligible(fish), true);
@@ -20,7 +20,7 @@ function setup({ status = 'pending', eligible = true, missing = false } = {}) {
   };
   const context = { exports: {}, process: { env: {} }, require: name => {
     if (name === '../models') return models;
-    if (name === '../services/masterAnglerReview') return { isEligible, DENIAL_REASONS };
+    if (name === '../services/masterAnglerReview') return { isEligible, eligibilityIssues, markIneligible, DENIAL_REASONS };
     return {};
   } };
   vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/masterAnglerController'), 'utf8'), context);
@@ -45,7 +45,8 @@ test('denial requires a predefined reason and stores it', async () => {
 test('stale, missing, or ineligible catches cannot be reviewed', async () => {
   for (const [options, code] of [[{ status: 'approved' }, 409], [{ eligible: false }, 409], [{ missing: true }, 404]]) {
     const ctx = setup(options); await ctx.run({ status: 'approved' });
-    assert.equal(ctx.res.statusCode, code); assert.equal(ctx.saved(), undefined);
+    assert.equal(ctx.res.statusCode, code);
+    assert.equal(ctx.saved()?.status, options.eligible === false ? 'not_eligible' : undefined);
   }
 });
 test('queue and decision routes require authenticated admins', () => {
@@ -144,5 +145,59 @@ test('serialized catch status matches the persisted review without applying read
     assert.equal(result.eligible_master_angler, status === 'pending');
     assert.equal(result.approved_master_angler, status === 'approved');
     assert.equal(result.masterAnglerEntries, undefined);
+  }
+});
+
+test('ineligible pending catches are automatically removed instead of denied', async () => {
+  const ctx = setup({ eligible: false });
+  await ctx.run({ status: 'denied', denial_reason: DENIAL_REASONS[0] });
+  assert.equal(ctx.res.statusCode, 409);
+  assert.equal(ctx.saved().status, 'not_eligible');
+  assert.equal(ctx.saved().reviewed, false);
+  assert.equal(ctx.catchUpdate().master_angler, false);
+});
+test('approval errors explain the failing requirement without recording a decision', async () => {
+  const ctx = setup({ eligible: false });
+  await ctx.run({ status: 'approved' });
+  assert.equal(ctx.res.statusCode, 409);
+  assert.match(ctx.res.body.error, /at least 20 inches/);
+  assert.equal(ctx.saved().status, 'not_eligible');
+  assert.equal(ctx.catchUpdate().master_angler, false);
+});
+test('eligibility explains legacy photos and missing witness evidence', () => {
+  assert.deepEqual(eligibilityIssues(fish), []);
+  const issues = eligibilityIssues({ ...fish, witness: 'NA', fish_image: '/photos/old.jpg' });
+  assert.ok(issues.some(issue => /witness/.test(issue)));
+  assert.ok(issues.some(issue => /Upload a catch photo/.test(issue)));
+});
+
+test('queue reconciliation persists ineligibility and rechecks locked data without changing completed decisions', async () => {
+  for (const scenario of ['stale', 'eligible', 'fixed', 'approved', 'denied']) {
+    const writes = [];
+    let transactions = 0;
+    const candidate = { id: 3, catch_id: fish.id, catch: { ...fish, length: scenario === 'eligible' ? 20 : 1 } };
+    const lockedFish = { ...fish, length: scenario === 'fixed' ? 20 : 1,
+      update: async data => writes.push(['fish', data]) };
+    const submission = { status: ['approved', 'denied'].includes(scenario) ? scenario : 'pending',
+      update: async data => writes.push(['submission', data]) };
+    const models = {
+      MasterAngler: {
+        findAll: async options => { assert.equal(options.where.status, 'pending'); assert.equal(options.where.user_id, 7); return [candidate]; },
+        findByPk: async () => submission,
+      },
+      FishCatch: { findByPk: async () => lockedFish },
+      sequelize: { transaction: async fn => { transactions++; return fn({ LOCK: { UPDATE: 'UPDATE' } }); } },
+    };
+    const context = { module: { exports: {} }, require: name => name === '../models' ? models : require('../services/catchPhotos') };
+    vm.runInNewContext(fs.readFileSync(require.resolve('../services/masterAnglerReview'), 'utf8'), context);
+    await context.module.exports.reconcilePendingSubmissions({ userId: 7 });
+    assert.equal(transactions, scenario === 'eligible' ? 0 : 1);
+    assert.equal(writes.length, scenario === 'stale' ? 2 : 0);
+    if (scenario === 'stale') {
+      assert.equal(writes[0][1].master_angler, false);
+      assert.equal(writes[1][1].status, 'not_eligible');
+      assert.equal(writes[1][1].reviewed, false);
+      assert.equal(writes[1][1].reviewed_by, null);
+    }
   }
 });
