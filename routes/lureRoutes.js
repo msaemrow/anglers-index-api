@@ -28,7 +28,7 @@ const {
  *         name: user_id
  *         schema:
  *           type: integer
- *         description: Filter lures owned by the user ID
+ *         description: Filter your own lures (requires authentication; other user IDs are rejected)
  *       - in: query
  *         name: brand
  *         schema:
@@ -82,7 +82,7 @@ const {
  *                       items:
  *                         type: string
  */
-router.get("/", getLures);
+router.get("/", addUserToReq, getLures);
 
 /**
  * @openapi
@@ -234,6 +234,6 @@ router.put("/:lureId", addUserToReq, adminRequired, editLure);
  *       500:
  *         description: Server error
  */
-router.delete("/delete/:lureId", deleteLure);
+router.delete("/delete/:lureId", addUserToReq, loginRequired, adminRequired, deleteLure);
 
 module.exports = router;

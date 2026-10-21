@@ -2,13 +2,13 @@ const express = require("express");
 const router = express.Router();
 
 const userController = require("../controllers/userController");
-const { loginRequired } = require("../middleware/authMiddleware");
+const { addUserToReq, loginRequired, adminRequired } = require("../middleware/authMiddleware");
 
 /**
  * @openapi
  * /users/signup:
  *   post:
- *     summary: User signup
+ *     summary: User signup (disabled unless explicitly enabled)
  *     tags: [Users]
  *     requestBody:
  *       required: true
@@ -31,6 +31,8 @@ const { loginRequired } = require("../middleware/authMiddleware");
  *     responses:
  *       201:
  *         description: User created successfully
+ *       403:
+ *         description: Public registration is disabled
  */
 router.post("/signup", userController.signup);
 
@@ -58,6 +60,9 @@ router.post("/signup", userController.signup);
  */
 router.post("/login", userController.login);
 
+// All account endpoints below require a verified, existing user.
+router.use(addUserToReq, loginRequired);
+
 /**
  * @openapi
  * /users/logout:
@@ -70,9 +75,7 @@ router.post("/login", userController.login);
  *       200:
  *         description: Logout successful
  */
-router.post("/logout", loginRequired, (req, res) => {
-  return res.json({ message: "Logout successful" });
-});
+router.post("/logout", userController.logout);
 
 /**
  * @openapi
@@ -117,7 +120,7 @@ router.post("/logout", loginRequired, (req, res) => {
  *               items:
  *                 $ref: "#/components/schemas/User"
  */
-router.get("/", loginRequired, userController.getAllUsers);
+router.get("/", adminRequired, userController.getAllUsers);
 
 /**
  * @openapi
@@ -181,7 +184,7 @@ router.get("/:user_id", userController.getUserById);
  *             schema:
  *               $ref: "#/components/schemas/User"
  */
-router.patch("/:user_id", loginRequired, userController.updateUser);
+router.patch("/:user_id", userController.updateUser);
 
 /**
  * @openapi
@@ -209,6 +212,6 @@ router.patch("/:user_id", loginRequired, userController.updateUser);
  *                   type: string
  *                   example: Successfully deleted user
  */
-router.delete("/:user_id", loginRequired, userController.deleteUser);
+router.delete("/:user_id", userController.deleteUser);
 
 module.exports = router;

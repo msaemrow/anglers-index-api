@@ -2,7 +2,9 @@ const express = require("express");
 const router = express.Router();
 
 const tackleBoxController = require("../controllers/tackleBoxController");
-const { loginRequired } = require("../middleware/authMiddleware");
+const { addUserToReq, loginRequired } = require("../middleware/authMiddleware");
+
+router.use(addUserToReq, loginRequired);
 
 /**
  * @openapi
@@ -10,6 +12,8 @@ const { loginRequired } = require("../middleware/authMiddleware");
  *   get:
  *     summary: Get all lures in a user's tackle box
  *     tags: [Tackle Box]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: user_id
@@ -39,6 +43,8 @@ router.get("/:user_id", tackleBoxController.getTackleBoxLures);
  *   post:
  *     summary: Add a lure to user's favorites
  *     tags: [Tackle Box]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -65,8 +71,10 @@ router.post("/", tackleBoxController.addFavorite);
  * @openapi
  * /tackle-box:
  *   delete:
- *     summary: Remove a lure from user's favorites (soft delete)
+ *     summary: Remove a lure from user's favorites
  *     tags: [Tackle Box]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:

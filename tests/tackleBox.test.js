@@ -7,14 +7,14 @@ const source = fs.readFileSync(require.resolve('../controllers/tackleBoxControll
 async function run(lures, fail = false) {
   let query;
   const Lure = {};
-  const context = { exports: {}, require: () => ({ Lure, TackleBox: { findAll: async options => {
+  const context = { exports: {}, require: name => name === '../helpers/errors' ? require('../helpers/errors') : ({ Lure, TackleBox: { findAll: async options => {
     query = options;
     if (fail) throw Error('database unavailable');
     return lures.map(lure => ({ lure: { toJSON: () => lure } }));
   } } }) };
   vm.runInNewContext(source, context);
   const response = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
-  await context.exports.getTackleBoxLures({ params: { user_id: '42' } }, response);
+  await context.exports.getTackleBoxLures({ user: { id: 42 }, params: { user_id: '42' } }, response);
   return { response, query, Lure };
 }
 test('loads lures with one user-scoped join and preserves sorted response', async () => {
@@ -23,7 +23,7 @@ test('loads lures with one user-scoped join and preserves sorted response', asyn
     { id: 2, brand: 'Acme', name: 'Spinner' },
     { id: 3, brand: 'Acme', name: 'Jig' },
   ]);
-  assert.equal(query.where.user_id, '42');
+  assert.equal(query.where.user_id, 42);
   assert.equal(query.include[0].model, Lure);
   assert.equal(query.include[0].required, true);
   assert.deepEqual(Array.from(response.body.tackle_box, lure => lure.id), [3, 2, 1]);

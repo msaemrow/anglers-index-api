@@ -16,7 +16,7 @@ function setup({ query = {}, body = {}, tripExists = true, fishExists = true, co
     Lake: { findByPk: async () => ({ id: 2 }) }, Species: {},
     sequelize: { transaction: async callback => callback({ LOCK: { UPDATE: 'UPDATE' } }) },
   };
-  const context = { exports: {}, require: name => name === '../models' ? models : require(name) };
+  const context = { exports: {}, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === '../models' ? models : require(name) };
   vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/tripController'), 'utf8'), context);
   const res = { statusCode: 200, set() {}, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; return this; } };
   return { calls, res, run: action => context.exports[action]({ user: { id: 42 }, params: { id: '5' }, query, body }, res) };
@@ -106,6 +106,7 @@ test('deleting an owned trip detaches all catches before deletion in the same tr
   const unlink = fixture.calls.find(([kind]) => kind === 'unlinkCatches');
   assert.equal(unlink[1].trip_id, null);
   assert.equal(unlink[2].where.trip_id, 5);
+  assert.equal(unlink[2].where.user_id, 42);
   assert.equal(unlink[2].paranoid, false);
   const deletion = fixture.calls.find(([kind]) => kind === 'destroyTrip');
   assert.equal(deletion[1].transaction, unlink[2].transaction);

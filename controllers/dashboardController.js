@@ -1,3 +1,4 @@
+const { logError } = require("../helpers/errors");
 const { FishCatch, Lake, Species, MasterAngler } = require("../models");
 const { serializeAward, reconcilePendingSubmissions } = require("../services/masterAnglerReview");
 
@@ -40,7 +41,7 @@ exports.getDashboard = async (req, res) => {
       pendingReviews: pendingReviews ? { total: pendingReviews.count, items: pendingReviews.rows } : null,
     });
   } catch (error) {
-    console.error("Dashboard fetch failed:", error);
+    logError(error, req);
     return res.status(500).json({ error: "Unable to load dashboard." });
   }
 };

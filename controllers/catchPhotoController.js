@@ -1,3 +1,4 @@
+const { sendError } = require("../helpers/errors");
 const { FishCatch, sequelize } = require('../models');
 const { storePhoto, removePhoto, readPhoto } = require('../services/catchPhotos');
 const { syncSubmission, awardFields } = require('../services/masterAnglerReview');
@@ -10,7 +11,10 @@ exports.getPhoto = async (req, res) => {
     const photo = await readPhoto(fish.fish_image);
     res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
     return res.send(photo);
-  } catch (error) { return res.status(error.status || (error.code === 'ENOENT' ? 404 : 500)).json({ error: 'Catch photo unavailable.' }); }
+  } catch (error) {
+    if (error.status === 404 || error.code === 'ENOENT') return res.status(404).json({ error: 'Catch photo unavailable.' });
+    return sendError(res, error, req, 'Catch photo unavailable.');
+  }
 };
 exports.savePhoto = async (req, res) => {
   if (req.method !== 'DELETE' && !req.photoBuffer) return res.status(400).json({ error: 'Attach a catch photo.' });
@@ -32,6 +36,6 @@ exports.savePhoto = async (req, res) => {
     committed = true;
     await removePhoto(oldKey);
     return res.json(result);
-  } catch { return res.status(500).json({ error: 'Unable to save the catch photo. Please try again.' }); }
+  } catch (error) { return sendError(res, error, req, 'Unable to save the catch photo. Please try again.'); }
   finally { if (!committed && newKey) await removePhoto(newKey); }
 };

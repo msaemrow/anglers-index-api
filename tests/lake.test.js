@@ -12,7 +12,7 @@ function setup({ missing = false } = {}) {
     create: async fields => { calls.push(['create', fields]); return { id: 18, ...fields }; },
     findAll: async options => { calls.push(['list', options]); return [lake]; },
   } };
-  const context = { process: { env: {} }, module: { exports: {} }, require: name => name === '../models' ? models : name === 'dotenv' ? { config() {} } : name === 'axios' ? { get: async () => { calls.push(['geocode']); return { data: [{ lat: 44, lon: -92 }] }; } } : {}, console };
+  const context = { process: { env: {} }, module: { exports: {} }, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === '../models' ? models : name === 'dotenv' ? { config() {} } : name === 'axios' ? { get: async () => { calls.push(['geocode']); return { data: [{ lat: 44, lon: -92 }] }; } } : {}, console };
   vm.runInNewContext(source, context);
   const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   return { calls, lake, res, handlers: context.module.exports };
@@ -45,7 +45,7 @@ test('all lake writes load the authenticated user before checking admin access',
   const routes = [];
   const router = Object.fromEntries(['get', 'post', 'put', 'delete'].map(method => [method, (...args) => routes.push([method, ...args])]));
   const middleware = { addUserToReq() {}, adminRequired() {} };
-  const context = { module: { exports: {} }, require: name => name === 'express' ? { Router: () => router } : name.includes('authMiddleware') ? middleware : {} };
+  const context = { module: { exports: {} }, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === 'express' ? { Router: () => router } : name.includes('authMiddleware') ? middleware : {} };
   vm.runInNewContext(fs.readFileSync(require.resolve('../routes/lakeRoutes'), 'utf8'), context);
   for (const [method, path, loadUser, authorize] of routes.filter(([method]) => method !== 'get')) {
     assert.equal(loadUser, middleware.addUserToReq, `${method} ${path}`);

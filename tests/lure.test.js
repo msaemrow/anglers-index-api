@@ -19,7 +19,7 @@ function setup({ failMembership = false, missing = false } = {}) {
       catch (error) { calls.push(['rollback']); throw error; }
     } },
   };
-  const context = { module: { exports: {} }, require: name => name === '../models' ? models : { Op: {} } };
+  const context = { module: { exports: {} }, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === '../models' ? models : { Op: {} } };
   vm.runInNewContext(source, context);
   const response = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   return { handlers: context.module.exports, calls, response, transaction, lure };

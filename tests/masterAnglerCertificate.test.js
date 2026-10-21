@@ -8,6 +8,7 @@ function setup({ fish = { id: 42, user_id: 7, master_angler: true }, user = { id
   let queried = 0;
   const models = { MasterAngler: { findOne: async options => { assert.equal(options.where.status, "approved"); return approved ? { status: "approved" } : null; } }, FishCatch: { findByPk: async catchId => { queried++; assert.equal(catchId, 42); return fish; } } };
   const context = { exports: {}, process: { env: {} }, console: { error() {} }, require: name => {
+    if (name === '../helpers/errors') return require('../helpers/errors');
     if (name === '../models') return models;
     if (name === '../services/masterAnglerCertificate') return { createMasterAnglerCertificate: async data => { generated++; assert.equal(data, fish); if (fail) throw Error('PDF failed'); return Buffer.from('%PDF-1.7'); } };
     return {};
@@ -48,6 +49,7 @@ test('certificate route authenticates the token and allows non-admin owners', ()
   const auth = { addUserToReq() {}, loginRequired() {}, adminRequired() {} };
   const controller = { generateCertificate() {} };
   const context = { module: { exports: {} }, require: name => {
+    if (name === '../helpers/errors') return require('../helpers/errors');
     if (name === 'express') return { Router: () => router };
     if (name === 'multer') return () => ({ single() {} });
     if (name.includes('authMiddleware')) return auth;

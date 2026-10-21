@@ -19,6 +19,7 @@ function setup({ status = 'pending', eligible = true, missing = false } = {}) {
     FishCatch: { findByPk: async () => ({ ...fish, length: eligible ? 20 : 1, update: async data => { catchUpdate = data; } }) },
   };
   const context = { exports: {}, process: { env: {} }, require: name => {
+    if (name === '../helpers/errors') return require('../helpers/errors');
     if (name === '../models') return models;
     if (name === '../services/masterAnglerReview') return { isEligible, eligibilityIssues, markIneligible, DENIAL_REASONS };
     return {};
@@ -54,7 +55,7 @@ test('queue and decision routes require authenticated admins', () => {
   const router = { post() {}, get: (...args) => registrations.push(args), patch: (...args) => registrations.push(args) };
   const auth = { addUserToReq() {}, loginRequired() {}, adminRequired() {} };
   vm.runInNewContext(fs.readFileSync(require.resolve('../routes/masterAnglerRoutes'), 'utf8'), {
-    module: { exports: {} }, require: name => name === 'express' ? { Router: () => router } : name === 'multer' ? () => ({ single() {} }) : name.includes('authMiddleware') ? auth : {},
+    module: { exports: {} }, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === 'express' ? { Router: () => router } : name === 'multer' ? () => ({ single() {} }) : name.includes('authMiddleware') ? auth : {},
   });
   for (const route of registrations) assert.deepEqual(route.slice(1, 4), [auth.addUserToReq, auth.loginRequired, auth.adminRequired]);
 });
@@ -73,7 +74,7 @@ test('saving a denied catch preserves its decision and never requeues it', async
   let created = false;
   let deleted = false;
   let saved = false;
-  const context = { module: { exports: {} }, require: name => name === './catchPhotos' ? require('../services/catchPhotos') : ({
+  const context = { module: { exports: {} }, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === './catchPhotos' ? require('../services/catchPhotos') : ({
     MasterAngler: {
       findOne: async () => ({ status: 'denied', denial_reason: DENIAL_REASONS[0] }),
       destroy: async () => { deleted = true; },
@@ -98,7 +99,7 @@ function syncSetup(previousStatus, overrides = {}) {
     update: async data => { updated = data; return { id: 1, ...data }; },
     destroy: async () => { archived = true; },
   } : null;
-  const context = { module: { exports: {} }, require: name => name === './catchPhotos' ? require('../services/catchPhotos') : ({
+  const context = { module: { exports: {} }, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === './catchPhotos' ? require('../services/catchPhotos') : ({
     MasterAngler: {
       findOne: async () => previous,
       create: async data => { created = data; return { id: 2, ...data }; },
@@ -188,7 +189,7 @@ test('queue reconciliation persists ineligibility and rechecks locked data witho
       FishCatch: { findByPk: async () => lockedFish },
       sequelize: { transaction: async fn => { transactions++; return fn({ LOCK: { UPDATE: 'UPDATE' } }); } },
     };
-    const context = { module: { exports: {} }, require: name => name === '../models' ? models : require('../services/catchPhotos') };
+    const context = { module: { exports: {} }, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === '../models' ? models : require('../services/catchPhotos') };
     vm.runInNewContext(fs.readFileSync(require.resolve('../services/masterAnglerReview'), 'utf8'), context);
     await context.module.exports.reconcilePendingSubmissions({ userId: 7 });
     assert.equal(transactions, scenario === 'eligible' ? 0 : 1);

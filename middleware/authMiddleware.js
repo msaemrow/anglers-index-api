@@ -1,10 +1,8 @@
+const { logError } = require("../helpers/errors");
 // middleware/authMiddleware.js
 
-const jwt = require("jsonwebtoken");
-const { User } = require("../models");
-require("dotenv").config();
-
-const SECRET_KEY = process.env.JWT_SECRET_KEY;
+const { verifyToken } = require("../helpers/authTokens");
+const { User, RevokedSession } = require("../models");
 
 // Middleware to add user to req.user if JWT is valid
 async function addUserToReq(req, res, next) {
@@ -14,18 +12,32 @@ async function addUserToReq(req, res, next) {
     return next();
   }
 
-  const token = authHeader.split(" ")[1]; // Bearer <token>
+  const token = typeof authHeader === "string" ? /^Bearer ([^\s]+)$/i.exec(authHeader)?.[1] : null;
   if (!token) {
     req.user = null;
     return next();
   }
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, SECRET_KEY);
-    const user = await User.findByPk(decoded.user_id);
-    req.user = user || null;
-  } catch (err) {
+    decoded = verifyToken(token);
+  } catch {
     req.user = null;
+    return next();
+  }
+
+  try {
+    const revoked = await RevokedSession.findByPk(decoded.jti);
+    if (revoked) {
+      req.user = null;
+      return next();
+    }
+    req.user = await User.findByPk(decoded.user_id) || null;
+    if (req.user) req.session = { id: decoded.jti, expiresAt: new Date(decoded.exp * 1000) };
+  } catch (error) {
+    logError(error, req, "authenticate");
+    // Do not treat revocation-store failures as successful authentication.
+    return res.status(503).json({ error: "Authentication is temporarily unavailable. Please try again." });
   }
 
   next();
@@ -47,30 +59,9 @@ function adminRequired(req, res, next) {
   next();
 }
 
-// Middleware that checks for valid token (like token_required)
-// and adds user to req.user (calls next or returns error)
-function tokenRequired(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader) {
-    return res.status(401).json({ error: "Token is missing" });
-  }
-
-  const token = authHeader.split(" ")[1]; // Bearer <token>
-  if (!token) {
-    return res.status(401).json({ error: "Token is missing" });
-  }
-
-  try {
-    const decoded = jwt.verify(token, SECRET_KEY);
-    req.user = { id: decoded.user_id }; // minimal info, or fetch user in separate middleware
-    next();
-  } catch (err) {
-    if (err.name === "TokenExpiredError") {
-      return res.status(401).json({ error: "Token has expired" });
-    } else {
-      return res.status(401).json({ error: "Invalid token" });
-    }
-  }
+// Retain the legacy export, but require a verified token AND an existing user.
+async function tokenRequired(req, res, next) {
+  return addUserToReq(req, res, () => loginRequired(req, res, next));
 }
 
 module.exports = {

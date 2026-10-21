@@ -6,6 +6,7 @@ function setup({ owner = 7, admin = false, missing = false, fail = false, remove
   const calls = [];
   const fish = { user_id: owner, fish_image: 'old-photo', toJSON() { return { id: 42, fish_image: this.fish_image }; }, async update(data) { this.fish_image = data.fish_image; } };
   const context = { exports: {}, require: name => {
+    if (name === '../helpers/errors') return require('../helpers/errors');
     if (name === '../models') return { FishCatch: { findByPk: async () => missing ? null : fish }, sequelize: { transaction: async fn => { const result = await fn({ LOCK: { UPDATE: 'update' } }); if (fail) throw Error('rollback'); return result; } } };
     if (name === '../services/catchPhotos') return { storePhoto: async () => { calls.push('store'); return 'new-photo'; }, removePhoto: async key => calls.push(`remove:${key}`), readPhoto: async key => { calls.push(`read:${key}`); return Buffer.from('photo'); } };
     if (name === '../services/masterAnglerReview') return { syncSubmission: async () => { calls.push('sync'); return { status: remove ? 'not_eligible' : 'pending' }; }, awardFields: (_, review) => ({ master_angler_status: review.status }) };

@@ -1,8 +1,23 @@
+const { sendError } = require("../helpers/errors");
 const { TackleBox, Lure } = require("../models");
+
+// Existing clients send user_id; reject other owners and always query as req.user.
+function requireOwner(req, res, suppliedId) {
+  if (!req.user) {
+    res.status(401).json({ error: "Unauthorized. Must be logged in." });
+    return false;
+  }
+  if (String(suppliedId) !== String(req.user.id)) {
+    res.status(403).json({ error: "You can only access your own tackle box." });
+    return false;
+  }
+  return true;
+}
 
 // Get all favorites for a user
 exports.getTackleBoxLures = async (req, res) => {
-  const { user_id } = req.params;
+  if (!requireOwner(req, res, req.params.user_id)) return;
+  const user_id = req.user.id;
 
   try {
     const favorites = await TackleBox.findAll({
@@ -27,13 +42,15 @@ exports.getTackleBoxLures = async (req, res) => {
 
     return res.status(200).json({ tackle_box: filteredLures, brands: brands });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };
 
 // Add lure to tackle box
 exports.addFavorite = async (req, res) => {
-  const { user_id, lure_id } = req.body;
+  if (!requireOwner(req, res, req.body?.user_id)) return;
+  const user_id = req.user.id;
+  const { lure_id } = req.body;
 
   if (!user_id || !lure_id) {
     return res.status(400).json({ error: "user_id and lure_id are required" });
@@ -59,13 +76,15 @@ exports.addFavorite = async (req, res) => {
       lure_id,
     });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };
 
 // Remove lure from tackle box (hard delete)
 exports.removeFavorite = async (req, res) => {
-  const { user_id, lure_id } = req.body;
+  if (!requireOwner(req, res, req.body?.user_id)) return;
+  const user_id = req.user.id;
+  const { lure_id } = req.body;
 
   if (!user_id || !lure_id) {
     return res.status(400).json({ error: "user_id and lure_id are required" });
@@ -85,6 +104,6 @@ exports.removeFavorite = async (req, res) => {
       lure_id,
     });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };

@@ -29,6 +29,7 @@ const Trip = require("./Trip")(sequelize);
 const TackleBox = require("./TackleBox")(sequelize);
 
 // Store in db object so migrations can see them
+db.RevokedSession = require("./RevokedSession")(sequelize);
 db.Trip = Trip;
 db.User = User;
 db.FishCatch = FishCatch;
@@ -104,7 +105,7 @@ db.connectDb = async () => {
     await sequelize.authenticate();
     console.log("💾 Database connected successfully!");
   } catch (err) {
-    console.error("❌ Database connection failed:", err);
+    require("../helpers/errors").logError(err, undefined, "database_connect");
     process.exit(1);
   }
 };

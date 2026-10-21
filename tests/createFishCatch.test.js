@@ -9,6 +9,7 @@ async function run(body, user = { id: 42 }, { weatherFails = false, lakeExists =
   let created;
   let createdTrip;
   const context = { console: { warn() {} }, exports: {}, module: { exports: {} }, require: name => {
+    if (name === '../helpers/errors') return require('../helpers/errors');
     if (name === '../services/masterAnglerReview') return { ...require('../services/masterAnglerReview'), syncSubmission: async () => {} };
     if (name === '../services/trips') return require('../services/trips');
     if (name === '../models') return {

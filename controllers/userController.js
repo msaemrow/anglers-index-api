@@ -1,10 +1,14 @@
+const { sendError, logError } = require("../helpers/errors");
+const { isSignupEnabled } = require("../config/registration");
 const { Op } = require("sequelize");
-const { User, FishCatch, MasterAngler, Lure } = require("../models");
+const { User, FishCatch, MasterAngler, Lure, RevokedSession } = require("../models");
 const createToken = require("../helpers/createToken");
-const bcrypt = require("bcrypt");
 
 exports.signup = async (req, res) => {
-  const { username, first_name, last_name, password, email } = req.body;
+  if (!isSignupEnabled()) {
+    return res.status(403).json({ error: "Public registration is disabled." });
+  }
+  const { username, first_name, last_name, password, email } = req.body || {};
 
   if (!username || !first_name || !last_name || !password || !email) {
     return res.status(400).json({ error: "All fields are required." });
@@ -43,7 +47,7 @@ exports.signup = async (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
@@ -80,7 +84,7 @@ exports.login = async (req, res) => {
       },
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
@@ -124,7 +128,7 @@ exports.getAllUsers = async (req, res) => {
 
     return res.status(200).json(users);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
@@ -132,10 +136,9 @@ exports.getUserById = async (req, res) => {
   const { user_id } = req.params;
   const currentUser = req.user; // Assume req.user is set by auth middleware
 
-  if (currentUser) {
-    if (parseInt(user_id) !== currentUser.id && !currentUser.is_admin) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+  if (!currentUser) return res.status(401).json({ error: "Unauthorized" });
+  if (String(user_id) !== String(currentUser.id) && !currentUser.is_admin) {
+    return res.status(403).json({ error: "Unauthorized" });
   }
 
   try {
@@ -163,7 +166,7 @@ exports.getUserById = async (req, res) => {
 
     return res.status(200).json(userData);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
@@ -171,9 +174,9 @@ exports.updateUser = async (req, res) => {
   const { user_id } = req.params;
   const currentUser = req.user;
 
-  if (parseInt(user_id) !== currentUser.id) {
+  if (String(user_id) !== String(currentUser.id)) {
     return res
-      .status(401)
+      .status(403)
       .json({ error: "Unauthorized. Cannot update other users' data" });
   }
 
@@ -202,7 +205,7 @@ exports.updateUser = async (req, res) => {
 
     return res.status(200).json(userResponse);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
@@ -210,9 +213,9 @@ exports.deleteUser = async (req, res) => {
   const { user_id } = req.params;
   const currentUser = req.user;
 
-  if (parseInt(user_id) !== currentUser.id && !currentUser.is_admin) {
+  if (String(user_id) !== String(currentUser.id) && !currentUser.is_admin) {
     return res
-      .status(401)
+      .status(403)
       .json({ error: "Unauthorized. Cannot delete another user's account" });
   }
 
@@ -223,6 +226,23 @@ exports.deleteUser = async (req, res) => {
     await user.destroy();
     return res.status(200).json({ message: "Successfully deleted user" });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
+};
+
+// Persist the revocation before confirming logout. No raw tokens are stored.
+exports.logout = async (req, res) => {
+  try {
+    await RevokedSession.upsert({ id: req.session.id, user_id: req.user.id, expires_at: req.session.expiresAt });
+  } catch (error) {
+    logError(error, req, "logout_revocation");
+    return res.status(503).json({ error: "Unable to log out right now. Please try again." });
+  }
+  // Expired tokens already fail cryptographic validation; cleanup is best effort.
+  try {
+    await RevokedSession.destroy({ where: { expires_at: { [Op.lte]: new Date() } } });
+  } catch (error) {
+    logError(error, req, "revocation_cleanup");
+  }
+  return res.json({ message: "Logout successful" });
 };

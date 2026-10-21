@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 function setup(query = {}, fail = false) {
   let options;
-  const context = { exports: {}, require: name => name === '../models' ? {
+  const context = { exports: {}, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === '../models' ? {
     FishCatch: { findAll: async value => { options = value; if (fail) throw Error('private database error'); return Array.from({ length: 501 }, (_, i) => ({ id: i + 1 })); } }, Lake: {}, Species: {},
   } : require(name) };
   vm.runInNewContext(fs.readFileSync(require.resolve('../controllers/catchAnalysisController'), 'utf8'), context);

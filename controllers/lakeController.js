@@ -1,16 +1,21 @@
 // controllers/lakeController.js
+const { logError } = require("../helpers/errors");
 require("dotenv").config();
 const axios = require("axios");
 const { Lake } = require("../models");
 const { Op } = require("sequelize");
 
 function validCoordinate(value, limit) {
-  return (typeof value === "number" || typeof value === "string") &&
-    String(value).trim() !== "" && Number.isFinite(Number(value)) && Math.abs(Number(value)) <= limit;
+  return (
+    (typeof value === "number" || typeof value === "string") &&
+    String(value).trim() !== "" &&
+    Number.isFinite(Number(value)) &&
+    Math.abs(Number(value)) <= limit
+  );
 }
 
 // Helper: get lat/long from OpenWeatherMap API
-async function getLakeLatLong(nearest_town, state) {
+async function getLakeLatLong(nearest_town, state, req) {
   const API_KEY = process.env.WEATHER_API_KEY;
 
   try {
@@ -28,7 +33,7 @@ async function getLakeLatLong(nearest_town, state) {
       lon: city.lon,
     };
   } catch (err) {
-    console.error(err);
+    logError(err, req, "lake_geocoding");
     return { error: "Failed to retrieve latitude and longitude" };
   }
 }
@@ -51,10 +56,16 @@ async function getLakes(req, res) {
     if (nearest_town) whereClause.nearest_town = nearest_town;
     if (name) whereClause.name = name;
 
-    const lakes = await Lake.findAll({ where: whereClause, order: [["name", "ASC"], ["id", "ASC"]] });
+    const lakes = await Lake.findAll({
+      where: whereClause,
+      order: [
+        ["name", "ASC"],
+        ["id", "ASC"],
+      ],
+    });
     return res.status(200).json(lakes);
   } catch (error) {
-    console.error(error);
+    logError(error, req);
     return res.status(500).json({ error: "Failed to retrieve lakes" });
   }
 }
@@ -71,7 +82,7 @@ async function getLakeById(req, res) {
 
     return res.status(200).json(lake);
   } catch (error) {
-    console.error(error);
+    logError(error, req);
     return res.status(500).json({ error: "Failed to retrieve lake" });
   }
 }
@@ -81,11 +92,19 @@ async function addLake(req, res) {
   try {
     const { name, state, nearest_town, county, latitude, longitude } = req.body;
     const hasCoordinates = latitude !== undefined || longitude !== undefined;
-    if (hasCoordinates && (!validCoordinate(latitude, 90) || !validCoordinate(longitude, 180)))
-      return res.status(400).json({ error: "Provide a latitude from -90 to 90 and a longitude from -180 to 180." });
+    if (
+      hasCoordinates &&
+      (!validCoordinate(latitude, 90) || !validCoordinate(longitude, 180))
+    )
+      return res
+        .status(400)
+        .json({
+          error:
+            "Provide a latitude from -90 to 90 and a longitude from -180 to 180.",
+        });
     const coords = hasCoordinates
       ? { lat: Number(latitude), lon: Number(longitude) }
-      : await getLakeLatLong(nearest_town, state);
+      : await getLakeLatLong(nearest_town, state, req);
     if (coords.error) {
       return res.status(400).json(coords);
     }
@@ -101,14 +120,14 @@ async function addLake(req, res) {
 
     res.status(201).json(newLake);
   } catch (error) {
-    console.error(error);
+    logError(error, req);
     if (
       error.name === "SequelizeUniqueConstraintError" ||
       error.name === "SequelizeValidationError"
     ) {
       return res
         .status(400)
-        .json({ error: error.errors.map((e) => e.message) });
+        .json({ error: "Some lake details are invalid or already exist." });
     }
     res.status(500).json({ error: "Server error" });
   }
@@ -127,7 +146,7 @@ async function deleteLake(req, res) {
     await lake.destroy();
     res.status(200).json({ message: `${lake.name} deleted successfully` });
   } catch (error) {
-    console.error(error);
+    logError(error, req);
     res.status(500).json({ error: "Failed to delete lake" });
   }
 }
@@ -144,9 +163,16 @@ async function updateLake(req, res) {
 
     const { name, state, nearest_town, county, latitude, longitude } = req.body;
 
-    if ((latitude !== undefined && !validCoordinate(latitude, 90)) ||
-        (longitude !== undefined && !validCoordinate(longitude, 180)))
-      return res.status(400).json({ error: "Provide a latitude from -90 to 90 and a longitude from -180 to 180." });
+    if (
+      (latitude !== undefined && !validCoordinate(latitude, 90)) ||
+      (longitude !== undefined && !validCoordinate(longitude, 180))
+    )
+      return res
+        .status(400)
+        .json({
+          error:
+            "Provide a latitude from -90 to 90 and a longitude from -180 to 180.",
+        });
     // Update only provided fields
     if (name !== undefined) lake.name = name;
     if (state !== undefined) lake.state = state;
@@ -159,11 +185,11 @@ async function updateLake(req, res) {
 
     res.status(200).json(lake);
   } catch (error) {
-    console.error(error);
+    logError(error, req);
     if (error.name === "SequelizeValidationError") {
       return res
         .status(400)
-        .json({ error: error.errors.map((e) => e.message) });
+        .json({ error: "Some lake details are invalid or already exist." });
     }
     res.status(500).json({ error: "Failed to update lake" });
   }

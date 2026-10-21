@@ -14,7 +14,9 @@ router.get("/analysis", addUserToReq, loginRequired, getCatchAnalysis);
  * @openapi
  * /fishcatch:
  *   get:
- *     summary: Get fish catches with options to filter
+ *     summary: Get your fish catches with options to filter
+ *     security:
+ *       - bearerAuth: []
  *     tags:
  *       - FishCatch
  *     parameters:
@@ -23,7 +25,7 @@ router.get("/analysis", addUserToReq, loginRequired, getCatchAnalysis);
  *         required: false
  *         schema:
  *           type: integer
- *         description: ID of the user whose catches to retrieve (required unless catch_id is provided)
+ *         description: Authenticated user ID (optional; other user IDs are rejected)
  *       - in: query
  *         name: catch_id
  *         required: false
@@ -77,13 +79,15 @@ router.get("/analysis", addUserToReq, loginRequired, getCatchAnalysis);
  *       404:
  *         description: Fish catch(es) not found
  */
-router.get("/", fishCatchController.getAllFishCatches);
+router.get("/", addUserToReq, loginRequired, fishCatchController.getAllFishCatches);
 
 /**
  * @openapi
  * /fishcatch/{catch_id}:
  *   get:
- *     summary: Get a single fish catch by ID
+ *     summary: Get a single fish catch by ID (owner or admin)
+ *     security:
+ *       - bearerAuth: []
  *     tags:
  *       - FishCatch
  *     parameters:
@@ -99,7 +103,7 @@ router.get("/", fishCatchController.getAllFishCatches);
  *       404:
  *         description: Fish catch not found
  */
-router.get("/:catch_id", fishCatchController.getFishCatchById);
+router.get("/:catch_id", addUserToReq, loginRequired, fishCatchController.getFishCatchById);
 
 /**
  * @openapi
@@ -194,6 +198,8 @@ router.delete("/:catch_id", addUserToReq, loginRequired, fishCatchController.del
  * /fishcatch/weather:
  *   post:
  *     summary: Get weather information for a fish catch location
+ *     security:
+ *       - bearerAuth: []
  *     tags:
  *       - FishCatch
  *     requestBody:
@@ -222,6 +228,6 @@ router.delete("/:catch_id", addUserToReq, loginRequired, fishCatchController.del
  *       400:
  *         description: Missing required parameters
  */
-router.post("/weather", fishCatchController.getWeather);
+router.post("/weather", addUserToReq, loginRequired, fishCatchController.getWeather);
 
 module.exports = router;

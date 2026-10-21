@@ -1,3 +1,4 @@
+const { sendError, logError } = require("../helpers/errors");
 const {
   MasterAngler,
   FishCatch,
@@ -28,7 +29,7 @@ exports.getAllMasterAnglerCatches = async (req, res) => {
       ], order: [["createdAt", "ASC"], ["id", "ASC"]],
     });
     return res.json({ items: submissions, denialReasons: DENIAL_REASONS });
-  } catch (error) { return res.status(500).json({ error: "Unable to load Master Angler reviews." }); }
+  } catch (error) { logError(error, req); return res.status(500).json({ error: "Unable to load Master Angler reviews." }); }
 };
 exports.submitMasterAngler = async (req, res) => {
   // Catch creation/editing automatically queues eligible catches.
@@ -61,7 +62,7 @@ exports.updateMasterAnglerSubmission = async (req, res) => {
     });
     if (result.error) return res.status(result.code).json({ error: result.error });
     return res.json(result.submission);
-  } catch (error) { return res.status(500).json({ error: "Unable to save the review." }); }
+  } catch (error) { logError(error, req); return res.status(500).json({ error: "Unable to save the review." }); }
 };
 
 /**
@@ -69,6 +70,9 @@ exports.updateMasterAnglerSubmission = async (req, res) => {
  */
 exports.getApprovedSubmissionsByUser = async (req, res) => {
   const { user_id } = req.params;
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+  if (String(user_id) !== String(req.user.id) && !req.user.is_admin)
+    return res.status(403).json({ error: "You can only view your own submissions." });
 
   try {
     const submissions = await MasterAngler.findAll({
@@ -109,7 +113,7 @@ exports.getApprovedSubmissionsByUser = async (req, res) => {
 
     return res.status(200).json(results);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
@@ -146,7 +150,7 @@ exports.generateCertificate = async (req, res) => {
     });
     return res.status(200).send(pdf);
   } catch (error) {
-    console.error("Certificate generation failed:", error);
+    logError(error, req);
     return res.status(500).json({ error: "Unable to generate the certificate. Please try again." });
   }
 };

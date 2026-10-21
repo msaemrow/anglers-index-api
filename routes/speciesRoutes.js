@@ -2,7 +2,9 @@ const express = require("express");
 const router = express.Router();
 
 const fishSpeciesController = require("../controllers/speciesController");
-const { adminRequired } = require("../middleware/authMiddleware");
+const { addUserToReq, adminRequired } = require("../middleware/authMiddleware");
+
+router.use(addUserToReq);
 
 /**
  * @openapi

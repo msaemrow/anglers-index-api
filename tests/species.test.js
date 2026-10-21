@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const source = fs.readFileSync(require.resolve('../controllers/speciesController'), 'utf8');
 
 async function create(body, addSpecies) {
-  const context = { exports: {}, require: name => name === '../models' ? { Species: { addSpecies } } : {} };
+  const context = { exports: {}, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === '../models' ? { Species: { addSpecies } } : {} };
   vm.runInNewContext(source, context);
   const response = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   await context.exports.addFishSpecies({ body }, response);

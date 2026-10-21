@@ -1,3 +1,4 @@
+const { sendError, publicError } = require("../helpers/errors");
 const { Species, FishCatch, MasterAngler, sequelize } = require("../models");
 const { ValidationError } = require("sequelize");
 const { Op } = require("sequelize");
@@ -6,6 +7,11 @@ const { Op } = require("sequelize");
 exports.getAllFishSpecies = async (req, res) => {
   try {
     const { names, includeCaughtSpecies, userId } = req.query;
+    if (includeCaughtSpecies === "true") {
+      if (!req.user) return res.status(401).json({ error: "Sign in to view personal bests." });
+      if (userId !== undefined && String(userId) !== String(req.user.id))
+        return res.status(403).json({ error: "You can only view your own personal bests." });
+    }
     let where = {};
 
     if (names) {
@@ -25,12 +31,12 @@ exports.getAllFishSpecies = async (req, res) => {
     };
 
     // If includeCaughtSpecies flag is set, include ONLY the biggest catch for each species
-    if (includeCaughtSpecies === "true" && userId) {
+    if (includeCaughtSpecies === "true") {
       queryOptions.include = [
         {
           model: FishCatch,
           as: "fishCatches", // Adjust alias based on your association
-          where: { user_id: userId },
+          where: { user_id: req.user.id },
           required: false, // LEFT JOIN - includes species even with no catches
           attributes: ["id", "length", "date", "master_angler"],
           limit: 1, // Only get one catch per species
@@ -44,7 +50,7 @@ exports.getAllFishSpecies = async (req, res) => {
 
     // Transform data if includeCaughtSpecies is true
     let result = species;
-    if (includeCaughtSpecies === "true" && userId) {
+    if (includeCaughtSpecies === "true") {
       const catchIds = species.flatMap(sp => (sp.toJSON().fishCatches || []).map(c => c.id));
       const reviews = catchIds.length ? await MasterAngler.findAll({
         where: { catch_id: { [Op.in]: catchIds } }, attributes: ["catch_id", "status"], order: [["id", "DESC"]], raw: true,
@@ -79,7 +85,7 @@ exports.getAllFishSpecies = async (req, res) => {
 
     return res.status(200).json(result);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };
 
@@ -100,7 +106,7 @@ exports.addFishSpecies = async (req, res) => {
     if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({ error: "Fish species already exists" });
     }
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };
 
@@ -119,7 +125,7 @@ exports.updateFishSpecies = async (req, res) => {
       return res.status(400).json({ error: "Master Angler length must be a nonnegative number." });
     const updatedSpecies = await sequelize.transaction(async transaction => {
       const species = await Species.findByPk(speciesId, { transaction });
-      if (!species) throw new Error("Species not found");
+      if (!species) throw publicError(404, "Species not found");
       await species.update({ master_angler_length: length }, { transaction });
       const catches = await FishCatch.findAll({ where: { species_id: speciesId }, order: [["id", "ASC"]], transaction, lock: transaction.LOCK.UPDATE });
       const { syncSubmission } = require("../services/masterAnglerReview");
@@ -128,10 +134,7 @@ exports.updateFishSpecies = async (req, res) => {
     });
     return res.status(200).json(updatedSpecies);
   } catch (error) {
-    if (error.message === "Species not found") {
-      return res.status(404).json({ error: error.message });
-    }
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };
 
@@ -140,7 +143,7 @@ exports.deleteFishSpecies = async (req, res) => {
   const { speciesId } = req.params;
 
   try {
-    const species = await FishSpecies.findByPk(speciesId);
+    const species = await Species.findByPk(speciesId);
     if (!species) {
       return res.status(404).json({ error: "Fish species not found" });
     }
@@ -149,6 +152,6 @@ exports.deleteFishSpecies = async (req, res) => {
       .status(200)
       .json({ message: "Fish species deleted successfully" });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };

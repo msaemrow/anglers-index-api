@@ -21,7 +21,7 @@ function setup({ admin = false, empty = false, fail = false } = {}) {
       findAll: async options => { calls.push(['approved', options]); return [{ catch_id: 7 }]; },
     },
   };
-  const context = { exports: {}, require: name => name === '../models' ? models : name === '../services/masterAnglerReview' ? { ...require(name), reconcilePendingSubmissions: async options => { calls.push(['reconcile', options]); } } : require(name), console: { error() {} } };
+  const context = { exports: {}, require: name => name === '../helpers/errors' ? require('../helpers/errors') : name === '../models' ? models : name === '../services/masterAnglerReview' ? { ...require(name), reconcilePendingSubmissions: async options => { calls.push(['reconcile', options]); } } : require(name), console: { error() {} } };
   vm.runInNewContext(source, context);
   const response = { statusCode: 200, set() {}, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
   return { calls, response, run: () => context.exports.getDashboard({ user: { id: 42, is_admin: admin }, query: { user_id: 999 } }, response) };

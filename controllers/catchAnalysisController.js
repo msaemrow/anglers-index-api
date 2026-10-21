@@ -1,3 +1,4 @@
+const { logError } = require("../helpers/errors");
 const { FishCatch, Lake, Species } = require('../models');
 const { Op } = require('sequelize');
 
@@ -18,7 +19,8 @@ exports.getCatchAnalysis = async (req, res) => {
     const catches = rows.slice(0, 500);
     res.set('Cache-Control', 'no-store');
     return res.json({ catches, next: rows.length > 500 ? catches.at(-1).id : null });
-  } catch {
+  } catch (error) {
+    logError(error, req);
     return res.status(500).json({ error: 'Unable to load catch analysis.' });
   }
 };

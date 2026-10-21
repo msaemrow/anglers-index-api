@@ -1,12 +1,13 @@
+const { sendError, publicError } = require("../helpers/errors");
 const { Trip, FishCatch, Lake, Species, sequelize } = require('../models');
 const { Op, fn, col } = require('sequelize');
 const { tripCatchError, tripSummary, tripDates, tripToday } = require('../services/trips');
 const positiveId = value => /^\d+$/.test(String(value)) && Number.isSafeInteger(Number(value)) && Number(value) > 0;
 const lakeInclude = { model: Lake, as: 'lake', attributes: ['name', 'county', 'state'] };
-function failure(res, error) {
-  return res.status(error.status || 500).json({ error: error.status ? error.message : 'Unable to update fishing trips.' });
+function failure(res, error, req) {
+  return sendError(res, error, req, 'Unable to update fishing trips.');
 }
-function reject(message, status = 400) { throw Object.assign(new Error(message), { status }); }
+function reject(message, status = 400) { throw publicError(status, message); }
 exports.listTrips = async (req, res) => {
   const after = req.query.after === undefined ? 0 : Number(req.query.after);
   if (!Number.isSafeInteger(after) || after < 0 || (req.query.status && !['active', 'completed'].includes(req.query.status)))
@@ -20,7 +21,7 @@ exports.listTrips = async (req, res) => {
     const byTrip = new Map(counts.map(row => [String(row.trip_id), Number(row.count)]));
     res.set('Cache-Control', 'no-store');
     return res.json({ trips: page.map(t => tripSummary(t, byTrip.get(String(t.id)) || 0)), next: trips.length > 100 ? page.at(-1).id : null });
-  } catch (error) { return failure(res, error); }
+  } catch (error) { return failure(res, error, req); }
 };
 exports.getTrip = async (req, res) => {
   if (!positiveId(req.params.id)) return res.status(400).json({ error: 'Invalid trip.' });
@@ -30,7 +31,7 @@ exports.getTrip = async (req, res) => {
     const catches = await FishCatch.findAll({ where: { trip_id: trip.id, user_id: req.user.id }, attributes: ['id', 'date', 'time', 'timestamp', 'length', 'weight', 'species_id', 'lake_id', 'trip_id'], include: [{ model: Species, as: 'species', attributes: ['name'] }], order: [['timestamp', 'DESC'], ['id', 'DESC']] });
     res.set('Cache-Control', 'no-store');
     return res.json({ ...tripSummary(trip, catches.length), catches });
-  } catch (error) { return failure(res, error); }
+  } catch (error) { return failure(res, error, req); }
 };
 exports.createTrip = async (req, res) => {
   const dates = tripDates(req.body);
@@ -41,7 +42,7 @@ exports.createTrip = async (req, res) => {
     if (!await Lake.findByPk(Number(req.body.lake_id))) return res.status(400).json({ error: 'Lake not found.' });
     const trip = await Trip.create({ user_id: req.user.id, lake_id: Number(req.body.lake_id), ...dates, notes: (req.body.notes || '').trim() });
     return res.status(201).json(tripSummary(trip, 0));
-  } catch (error) { return failure(res, error); }
+  } catch (error) { return failure(res, error, req); }
 };
 exports.attachCatch = async (req, res) => {
   if (!positiveId(req.params.id) || !positiveId(req.body.catch_id)) return res.status(400).json({ error: 'Choose a valid catch.' });
@@ -58,7 +59,7 @@ exports.attachCatch = async (req, res) => {
       await fish.update({ trip_id: trip.id }, { transaction });
     });
     return res.json({ message: 'Catch added to trip.' });
-  } catch (error) { return failure(res, error); }
+  } catch (error) { return failure(res, error, req); }
 };
 
 exports.deleteTrip = async (req, res) => {
@@ -69,9 +70,9 @@ exports.deleteTrip = async (req, res) => {
       const trip = await Trip.findOne({ where: { id: Number(req.params.id), user_id: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
       if (!trip) reject('Fishing trip not found.', 404);
       // Include soft-deleted catches so restoring one cannot restore a stale link.
-      await FishCatch.update({ trip_id: null }, { where: { trip_id: trip.id }, paranoid: false, transaction });
+      await FishCatch.update({ trip_id: null }, { where: { trip_id: trip.id, user_id: req.user.id }, paranoid: false, transaction });
       await trip.destroy({ transaction });
     });
     return res.json({ message: 'Trip deleted. All catches have been kept.' });
-  } catch (error) { return failure(res, error); }
+  } catch (error) { return failure(res, error, req); }
 };

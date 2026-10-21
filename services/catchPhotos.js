@@ -1,3 +1,4 @@
+const { logError } = require("../helpers/errors");
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
@@ -62,7 +63,7 @@ async function storePhoto(buffer) {
 async function removePhoto(key) {
   if (!isPhotoKey(key)) return;
   try { await fs.unlink(photoPath(key)); }
-  catch (error) { if (error.code !== 'ENOENT') console.warn('Unable to remove catch photo', { code: error.code }); }
+  catch (error) { if (error.code !== 'ENOENT') logError(error, undefined, 'remove_photo'); }
 }
 async function readPhoto(key) { return fs.readFile(photoPath(key)); }
 module.exports = { MAX_PHOTO_BYTES, isPhotoKey, photoPath, processPhoto, storePhoto, removePhoto, readPhoto };

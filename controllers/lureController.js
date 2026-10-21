@@ -1,9 +1,16 @@
-const { Lure, User, TackleBox, sequelize } = require("../models");
+const { sendError } = require("../helpers/errors");
+const { Lure, TackleBox, sequelize } = require("../models");
 const { Op } = require("sequelize");
+
+const catalogAttributes = ["id", "brand", "name", "color", "size"];
 
 const getLures = async (req, res) => {
   try {
     const { user_id, brand, name, color, brands_only, lures_only } = req.query;
+    if (user_id !== undefined) {
+      if (!req.user) return res.status(401).json({ error: "Sign in to filter your lures." });
+      if (String(user_id) !== String(req.user.id)) return res.status(403).json({ error: "You can only filter by your own user ID." });
+    }
 
     if (brands_only && brands_only === "Y") {
       // Only distinct brands
@@ -18,24 +25,14 @@ const getLures = async (req, res) => {
 
     // Build where clause for filtered lures
     let whereClause = {};
-    if (user_id) whereClause.user_id = { [Op.or]: [3, parseInt(user_id, 10)] };
+    if (user_id !== undefined) whereClause.user_id = req.user.id;
     if (brand) whereClause.brand = { [Op.iLike]: `%${brand}%` };
     if (name) whereClause.name = { [Op.iLike]: `%${name}%` };
     if (color) whereClause.color = { [Op.iLike]: `%${color}%` };
 
-    const includeUser = user_id
-      ? [
-          {
-            model: User,
-            as: "owner",
-            attributes: ["id", "username", "email"],
-          },
-        ]
-      : [];
-
     const lures = await Lure.findAll({
       where: whereClause,
-      include: includeUser,
+      attributes: catalogAttributes,
       order: [
         ["brand", "ASC"],
         ["name", "ASC"],
@@ -57,7 +54,7 @@ const getLures = async (req, res) => {
 
     return res.status(200).json({ lures, brands });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };
 
@@ -66,13 +63,7 @@ const getLureById = async (req, res) => {
     const lureId = parseInt(req.params.lureId, 10);
 
     const lure = await Lure.findByPk(lureId, {
-      include: [
-        {
-          model: User,
-          as: "owner",
-          attributes: ["id", "username", "email"],
-        },
-      ],
+      attributes: catalogAttributes,
     });
 
     if (!lure) {
@@ -81,7 +72,7 @@ const getLureById = async (req, res) => {
 
     return res.status(200).json(lure);
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };
 
@@ -110,7 +101,7 @@ const addLure = async (req, res) => {
     if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(400).json({ error: "Lure already exists" });
     }
-    return res.status(500).json({ error: "Unable to create lure. Please try again." });
+    return sendError(res, error, req, "Unable to create lure. Please try again.");
   }
 };
 
@@ -126,7 +117,7 @@ const editLure = async (req, res) => {
     await lure.save();
     return res.status(200).json(lure);
   } catch (error) {
-    return res.status(500).json({ error: "Unable to update lure. Please try again." });
+    return sendError(res, error, req, "Unable to update lure. Please try again.");
   }
 };
 
@@ -143,7 +134,7 @@ const deleteLure = async (req, res) => {
 
     return res.status(200).json({ message: "Lure deleted successfully" });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return sendError(res, error, req);
   }
 };
 

@@ -1,3 +1,4 @@
+const { sendError, logError, publicError } = require("../helpers/errors");
 // controllers/fishCatchController.js
 
 const { FishCatch, Lake, Lure, Species, MasterAngler, Trip, sequelize } = require("../models");
@@ -7,9 +8,11 @@ const { Op } = require("sequelize");
 const { getCatchWeather } = require("../services/catchWeather");
 
 const getAllFishCatches = async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+  if (req.query.user_id !== undefined && String(req.query.user_id) !== String(req.user.id))
+    return res.status(403).json({ error: "You can only list your own catches." });
   try {
     const {
-      user_id,
       catch_id,
       masterAngler,
       orderBy,
@@ -19,7 +22,7 @@ const getAllFishCatches = async (req, res) => {
       date,
     } = req.query;
 
-    let whereClause = {};
+    const whereClause = { user_id: req.user.id };
 
     const attributes = {
       exclude: [
@@ -65,14 +68,10 @@ const getAllFishCatches = async (req, res) => {
       whereClause.id = idList.length === 1 ? idList[0] : idList;
     }
 
-    if (user_id) {
-      whereClause.user_id = user_id;
-    }
-
     if (masterAngler !== undefined) {
       const approved = masterAngler === "Y" || masterAngler === "true";
       // Award filtering follows the review decision, including older denied catches.
-      const submissions = await MasterAngler.findAll({ where: { status: "approved" }, attributes: ["catch_id"], raw: true });
+      const submissions = await MasterAngler.findAll({ where: { status: "approved", user_id: req.user.id }, attributes: ["catch_id"], raw: true });
       whereClause[Op.and] = [{ id: { [approved ? Op.in : Op.notIn]: submissions.map(s => s.catch_id) } }];
     }
 
@@ -86,12 +85,6 @@ const getAllFishCatches = async (req, res) => {
 
     if (species_id) {
       whereClause.species_id = species_id;
-    }
-
-    if (Object.keys(whereClause).length === 0) {
-      return res.status(400).json({
-        error: "At least one filter parameter must be provided.",
-      });
     }
 
     if (date !== undefined) {
@@ -116,15 +109,17 @@ const getAllFishCatches = async (req, res) => {
 
     return res.status(200).json(catches.map(serializeAward));
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
 const getFishCatchById = async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
   try {
     const { catch_id } = req.params;
 
-    const catchObj = await FishCatch.findByPk(catch_id, {
+    const catchObj = await FishCatch.findOne({
+      where: { id: catch_id, ...(!req.user.is_admin ? { user_id: req.user.id } : {}) },
       include: [
         { model: Lake, as: "lake" },
         { model: Lure, as: "lure" },
@@ -141,7 +136,7 @@ const getFishCatchById = async (req, res) => {
     const review = await MasterAngler.findOne({ where: { catch_id: catchObj.id }, order: [["id", "DESC"]] });
     return res.status(200).json({ ...catchObj.toJSON(), ...awardFields(catchObj, review), master_angler_review: review, master_angler_denial_reasons: DENIAL_REASONS });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
@@ -182,7 +177,7 @@ const createFishCatch = async (req, res) => {
         weatherWarning = "Some weather conditions were unavailable for this catch.";
     } catch (weatherError) {
       // Never log the Axios error/config: it contains the weather API key.
-      console.warn("Catch weather unavailable", { status: weatherError.response?.status, code: weatherError.code });
+      logError(weatherError, req, "catch_weather");
       weatherWarning = "Weather could not be recorded for this catch.";
     }
     let review;
@@ -195,7 +190,7 @@ const createFishCatch = async (req, res) => {
     if (tripId != null) {
       const trip = await Trip.findOne({ where: { id: Number(tripId), user_id: req.user.id }, transaction, lock: transaction.LOCK.UPDATE });
       const error = require("../services/trips").tripCatchError(trip, { lake_id, date }, req.user.id);
-      if (error) throw Object.assign(new Error(error), { status: 400 });
+      if (error) throw publicError(400, error);
     }
     if (req.photoBuffer) photoKey = await require("../services/catchPhotos").storePhoto(req.photoBuffer);
     const fish = await FishCatch.create({
@@ -216,7 +211,7 @@ const createFishCatch = async (req, res) => {
     if (weatherWarning) result.weather_warning = weatherWarning;
     return res.status(201).json(result);
   } catch (err) {
-    return res.status(err.status || 400).json({ error: err.status ? err.message : "Unable to save this catch." });
+    return sendError(res, err, req, "Unable to save this catch.");
   } finally {
     if (photoKey && !committed) await require("../services/catchPhotos").removePhoto(photoKey);
   }
@@ -252,7 +247,7 @@ const updateFishCatch = async (req, res) => {
     if (result.error) return res.status(result.code).json({ error: result.error });
     return res.json({ ...result.fish.toJSON(), ...awardFields(result.fish, result.review), master_angler_review: result.review });
   } catch (err) {
-    return res.status(400).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
@@ -277,7 +272,7 @@ const deleteFishCatch = async (req, res) => {
       .status(200)
       .json({ message: `Fish catch with ID ${catch_id} deleted successfully` });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 
@@ -303,7 +298,7 @@ const getWeather = async (req, res) => {
 
     return res.status(200).json(weatherData.data);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return sendError(res, err, req);
   }
 };
 

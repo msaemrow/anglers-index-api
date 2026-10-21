@@ -1,8 +1,4 @@
-const jwt = require("jsonwebtoken");
-
-const JWT_SECRET_KEY = process.env.JWT_SECRET_KEY || "your_default_secret_key";
-const JWT_ALGORITHM = process.env.JWT_ALGORITHM || "HS256";
-const JWT_EXPIRATION = parseInt(process.env.JWT_EXPIRATION, 10) || 86400; // seconds
+const { signToken } = require("./authTokens");
 
 function createToken(user) {
   const payload = {
@@ -16,16 +12,7 @@ function createToken(user) {
     is_admin: user.is_admin,
   };
 
-  // jwt.sign automatically adds 'iat' (issued at)
-  // 'exp' must be a UNIX timestamp in seconds, so calculate current time + expiration
-  const options = {
-    algorithm: JWT_ALGORITHM,
-    expiresIn: JWT_EXPIRATION, // this accepts seconds or string like '1d'
-  };
-
-  const token = jwt.sign(payload, JWT_SECRET_KEY, options);
-
-  return token;
+  return signToken(payload);
 }
 
 module.exports = createToken;
