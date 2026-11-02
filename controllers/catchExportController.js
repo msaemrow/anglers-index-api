@@ -18,6 +18,7 @@ exports.exportCatchGpx = async (req, res) => {
         if (req.aborted || res.destroyed) return null;
         const where = { user_id: req.user.id, id: { [Op.gt]: after } };
         if (filters.lake_id) where.lake_id = filters.lake_id;
+        if (filters.species_id) where.species_id = filters.species_id;
         if (filters.from || filters.to) where.date = {
           ...(filters.from ? { [Op.gte]: filters.from } : {}),
           ...(filters.to ? { [Op.lte]: filters.to } : {}),

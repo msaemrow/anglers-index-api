@@ -6,7 +6,7 @@ const { getCatchMap } = require("../controllers/catchMapController");
  * @openapi
  * /fishcatch/locations:
  *   get:
- *     summary: Get your private catch map points for one lake
+ *     summary: Get your private catch map points, optionally filtered by lake
  *     description: Owner-only, including for administrators. Returns up to 500 lightweight points per cursor page. Excludes deleted or unlocated catches.
  *     tags: [FishCatch]
  *     security:
@@ -14,7 +14,6 @@ const { getCatchMap } = require("../controllers/catchMapController");
  *     parameters:
  *       - in: query
  *         name: lake_id
- *         required: true
  *         schema: { type: integer, minimum: 1 }
  *       - in: query
  *         name: after
@@ -41,6 +40,9 @@ const { exportCatchGpx } = require("../controllers/catchExportController");
  *     parameters:
  *       - in: query
  *         name: lake_id
+ *         schema: { type: integer, minimum: 1 }
+ *       - in: query
+ *         name: species_id
  *         schema: { type: integer, minimum: 1 }
  *       - in: query
  *         name: from

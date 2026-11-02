@@ -1,13 +1,14 @@
 const { publicError } = require("../helpers/errors");
 
 function exportFilters(query) {
-  if (Object.keys(query).some(key => !["lake_id", "from", "to", "details"].includes(key)))
+  if (Object.keys(query).some(key => !["lake_id", "species_id", "from", "to", "details"].includes(key)))
     throw publicError(400, "Unsupported export filter.");
   const filters = { details: true };
-  if (query.lake_id !== undefined) {
-    if (typeof query.lake_id !== "string" || !/^[1-9]\d*$/.test(query.lake_id) || !Number.isSafeInteger(Number(query.lake_id)))
-      throw publicError(400, "Choose a valid lake.");
-    filters.lake_id = Number(query.lake_id);
+  for (const key of ["lake_id", "species_id"]) {
+    if (query[key] === undefined) continue;
+    if (typeof query[key] !== "string" || !/^[1-9]\d*$/.test(query[key]) || !Number.isSafeInteger(Number(query[key])))
+      throw publicError(400, "Choose a valid lake or species.");
+    filters[key] = Number(query[key]);
   }
   for (const key of ["from", "to"]) {
     if (query[key] === undefined) continue;

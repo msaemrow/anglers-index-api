@@ -8,8 +8,9 @@ const fish = id => ({ id, date: '2026-11-01', time: '10:30:00', timestamp: 17935
 
 test('validates inclusive date and lake filters and rejects ownership overrides', () => {
   assert.equal(exportFilters({}).details, true);
+  assert.equal(exportFilters({ species_id: '3' }).species_id, 3);
   assert.equal(exportFilters({ details: 'false', lake_id: '2', from: '2026-11-01', to: '2026-11-01' }).lake_id, 2);
-  for (const query of [{ user_id: '7' }, { lake_id: '0' }, { lake_id: ['2'] }, { from: '2026-02-30' }, { to: 'invalid' }, { from: '2026-11-02', to: '2026-11-01' }, { details: 'yes' }, { details: ['true'] }]) assert.throws(() => exportFilters(query), error => error.status === 400);
+  for (const query of [{ species_id: '0' }, { species_id: ['3'] }, { species_id: '3 OR 1=1' }, { user_id: '7' }, { lake_id: '0' }, { lake_id: ['2'] }, { from: '2026-02-30' }, { to: 'invalid' }, { from: '2026-11-02', to: '2026-11-01' }, { details: 'yes' }, { details: ['true'] }]) assert.throws(() => exportFilters(query), error => error.status === 400);
 });
 test('generates GPX waypoints with escaped text, catch time and explicit measurement units', () => {
   const xml = waypoint(fish(17), { latitude: 0, longitude: 0 }, true);
@@ -53,9 +54,10 @@ test('export scopes catch and location batches to authenticated ownership, inclu
       } },
     });
     const res = response();
-    await run({ user, query: { lake_id: '2', from: '2026-11-01', to: '2026-11-02' } }, res);
+    await run({ user, query: { lake_id: '2', species_id: '3', from: '2026-11-01', to: '2026-11-02' } }, res);
     assert.equal(query.where.user_id, user.id);
     assert.equal(query.where.lake_id, 2);
+    assert.equal(query.where.species_id, 3);
     assert.equal(query.where.date[Op.gte], '2026-11-01');
     assert.equal(query.where.date[Op.lte], '2026-11-02');
     assert.notEqual(query.paranoid, false);

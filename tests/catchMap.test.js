@@ -40,7 +40,7 @@ test('unauthenticated, invalid lake/cursor and ownership override requests never
   const anonymous = response();
   await run({ query: { lake_id: '2' } }, anonymous);
   assert.equal(anonymous.code, 401);
-  for (const query of [{}, { lake_id: '0' }, { lake_id: ['2'] }, { lake_id: '2 OR 1=1' }, { lake_id: '2', user_id: '7' }, { lake_id: '2', after: '-1' }, { lake_id: '2', after: '9007199254740992' }]) {
+  for (const query of [ { lake_id: '0' }, { lake_id: ['2'] }, { lake_id: '2 OR 1=1' }, { lake_id: '2', user_id: '7' }, { lake_id: '2', after: '-1' }, { lake_id: '2', after: '9007199254740992' }]) {
     const res = response();
     await run({ user: { id: 42 }, query }, res);
     assert.equal(res.code, 400);
@@ -60,4 +60,14 @@ test('map pages have a stable cursor and return empty lists normally', async () 
   await controller(async () => [])({ user: { id: 42 }, query: { lake_id: '2' } }, empty);
   assert.equal(empty.body.catches.length, 0);
   assert.equal(empty.body.next_cursor, null);
+});
+
+test('all-lake waypoints retain ownership restrictions without a lake constraint', async () => {
+  let options;
+  const res = response();
+  await controller(async query => { options = query; return [row(17)]; })({ user: { id: 42 }, query: {} }, res);
+  assert.equal(res.code, 200);
+  assert.equal(options.where.user_id, 42);
+  assert.equal(options.include[0].where.user_id, 42);
+  assert.equal(options.include[0].where.lake_id, undefined);
 });
