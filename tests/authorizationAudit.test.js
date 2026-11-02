@@ -36,6 +36,7 @@ test('every protected route rejects anonymous access and catalog/admin writes re
   const dependencies = {
     '../models': models, sequelize: { Op: {} }, axios: {},
     '../services/masterAnglerReview': {}, '../services/catchWeather': {},
+    '../services/catchLocation': require('../services/catchLocation'),
     '../services/catchPhotos': {}, '../services/trips': require('../services/trips'),
     '../config/registration': { isSignupEnabled: () => false }, '../helpers/createToken': () => 'token',
   };
@@ -44,6 +45,10 @@ test('every protected route rejects anonymous access and catalog/admin writes re
   const controllerNames = ['user', 'fishCatch', 'lure', 'lake', 'species', 'masterAngler', 'tackleBox', 'trip'];
   const controllers = Object.fromEntries(controllerNames.map(name => [name, load(`../controllers/${name}Controller`, dependencies)]));
   const extra = {
+    "../controllers/catchExportController": load("../controllers/catchExportController", { ...dependencies, "../services/catchGpx": require("../services/catchGpx") }),
+    "../controllers/catchMapController": load("../controllers/catchMapController", dependencies),
+    '../controllers/preferencesController': load('../controllers/preferencesController', dependencies),
+    '../controllers/catchLocationController': load('../controllers/catchLocationController', dependencies),
     '../controllers/catchPhotoController': load('../controllers/catchPhotoController', dependencies),
     '../controllers/catchAnalysisController': load('../controllers/catchAnalysisController', dependencies),
     '../middleware/catchPhotoUpload': () => assert.fail('Unauthorized uploads must not be processed'),
@@ -60,6 +65,8 @@ test('every protected route rejects anonymous access and catalog/admin writes re
     return fetch(`http://127.0.0.1:${server.address().port}${path}`, { method, headers: token ? { Authorization: `Bearer ${token}` } : {} });
   }
   const protectedRoutes = [
+    ['GET', '/users/me/preferences'], ['PATCH', '/users/me/preferences'],
+    ['GET', '/fishcatch/export/gpx'], ['GET', '/fishcatch/locations?lake_id=2'], ['GET', '/fishcatch/17/location'], ['PUT', '/fishcatch/17/location'], ['DELETE', '/fishcatch/17/location'],
     ['GET', '/users'], ['GET', '/users/42'], ['PATCH', '/users/42'], ['DELETE', '/users/42'], ['POST', '/users/logout'],
     ['GET', '/fishcatch'], ['GET', '/fishcatch/17'], ['PATCH', '/fishcatch/17'], ['DELETE', '/fishcatch/17'], ['POST', '/fishcatch'],
     ['GET', '/fishcatch/17/photo'], ['POST', '/fishcatch/17/photo'], ['DELETE', '/fishcatch/17/photo'], ['GET', '/fishcatch/analysis'], ['POST', '/fishcatch/weather'],

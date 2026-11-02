@@ -1,7 +1,73 @@
 const express = require("express");
 const router = express.Router();
 const { addUserToReq, loginRequired } = require("../middleware/authMiddleware");
+const { getCatchMap } = require("../controllers/catchMapController");
+/**
+ * @openapi
+ * /fishcatch/locations:
+ *   get:
+ *     summary: Get your private catch map points for one lake
+ *     description: Owner-only, including for administrators. Returns up to 500 lightweight points per cursor page. Excludes deleted or unlocated catches.
+ *     tags: [FishCatch]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: lake_id
+ *         required: true
+ *         schema: { type: integer, minimum: 1 }
+ *       - in: query
+ *         name: after
+ *         schema: { type: integer, minimum: 1 }
+ *     responses:
+ *       200:
+ *         description: Object containing catches and nullable next_cursor. Private responses are not cacheable.
+ *       400:
+ *         description: Invalid lake/cursor or unsupported query parameter
+ *       401:
+ *         description: Authentication required
+ */
+router.get("/locations", addUserToReq, loginRequired, getCatchMap);
+const { exportCatchGpx } = require("../controllers/catchExportController");
+/**
+ * @openapi
+ * /fishcatch/export/gpx:
+ *   get:
+ *     summary: Export your private catch locations as GPX 1.1 waypoints
+ *     description: Owner-only, including for admins. Skips catches without usable coordinates. Dates filter catch dates inclusively. Deleted catches are excluded.
+ *     tags: [FishCatch]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: lake_id
+ *         schema: { type: integer, minimum: 1 }
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: details
+ *         schema: { type: boolean, default: true }
+ *     responses:
+ *       200:
+ *         description: GPX download with X-Export-Count and X-Skipped-Count headers. Private responses are not cacheable.
+ *         content:
+ *           application/gpx+xml:
+ *             schema: { type: string, format: binary }
+ *       400:
+ *         description: Invalid or unsupported export filters
+ *       401:
+ *         description: Authentication required
+ */
+router.get("/export/gpx", addUserToReq, loginRequired, exportCatchGpx);
 const fishCatchController = require("../controllers/fishCatchController");
+const { locationRequest } = require("../controllers/catchLocationController");
+router.get("/:catch_id/location", addUserToReq, loginRequired, locationRequest);
+router.put("/:catch_id/location", addUserToReq, loginRequired, locationRequest);
+router.delete("/:catch_id/location", addUserToReq, loginRequired, locationRequest);
 const catchPhotoUpload = require("../middleware/catchPhotoUpload");
 const catchPhotoController = require("../controllers/catchPhotoController");
 router.get("/:catch_id/photo", addUserToReq, loginRequired, catchPhotoController.getPhoto);

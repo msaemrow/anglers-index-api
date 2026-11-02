@@ -1,7 +1,7 @@
 const { sendError, logError, publicError } = require("../helpers/errors");
 // controllers/fishCatchController.js
 
-const { FishCatch, Lake, Lure, Species, MasterAngler, Trip, sequelize } = require("../models");
+const { FishCatch, Lake, Lure, Species, MasterAngler, Trip, CatchLocation, sequelize } = require("../models");
 const { awardFields, serializeAward, DENIAL_REASONS } = require("../services/masterAnglerReview");
 const axios = require("axios");
 const { Op } = require("sequelize");
@@ -158,6 +158,7 @@ const createFishCatch = async (req, res) => {
     if (!Number.isInteger(catchTimestamp) || catchTimestamp < -2147483648 || catchTimestamp > 2147483647)
       return res.status(400).json({ error: "The catch date is outside the supported range." });
     if (fish_image) return res.status(400).json({ error: "Upload a photo file instead of supplying a photo path." });
+    const location = require("../services/catchLocation").parseLocation(req.body.location);
     const tripId = req.body.trip_id;
     const startingTrip = req.body.new_trip !== undefined;
     const tripRange = startingTrip && req.body.new_trip && typeof req.body.new_trip === "object" ? require("../services/trips").tripDates(req.body.new_trip) : null;
@@ -203,6 +204,7 @@ const createFishCatch = async (req, res) => {
       witness: typeof witness === "string" ? witness.trim().slice(0, 75) : "NA",
       fish_image: photoKey || "",
     }, { transaction });
+    if (location) await CatchLocation.create({ ...location, catch_id: fish.id, user_id: req.user.id }, { transaction });
     review = await require("../services/masterAnglerReview").syncSubmission(fish, transaction);
     return fish;
     });
@@ -265,7 +267,11 @@ const deleteFishCatch = async (req, res) => {
 
     if (String(catchObj.user_id) !== String(req.user.id) && !req.user.is_admin)
       return res.status(403).json({ error: "You can only delete your own catches." });
-    await catchObj.destroy();
+    await sequelize.transaction(async transaction => {
+      await catchObj.reload({ transaction, lock: transaction.LOCK.UPDATE });
+      await CatchLocation.destroy({ where: { catch_id: catchObj.id }, transaction });
+      await catchObj.destroy({ transaction });
+    });
     await require("../services/catchPhotos").removePhoto(catchObj.fish_image);
 
     return res

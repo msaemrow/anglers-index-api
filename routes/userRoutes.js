@@ -4,6 +4,10 @@ const router = express.Router();
 const userController = require("../controllers/userController");
 const { addUserToReq, loginRequired, adminRequired } = require("../middleware/authMiddleware");
 
+const { preferences } = require("../controllers/preferencesController");
+router.get("/me/preferences", addUserToReq, loginRequired, preferences);
+router.patch("/me/preferences", addUserToReq, loginRequired, preferences);
+
 /**
  * @openapi
  * /users/signup:

@@ -8,15 +8,18 @@ async function run(body, user = { id: 42 }, { weatherFails = false, lakeExists =
   let weatherRequest;
   let created;
   let createdTrip;
+  let createdLocation;
   const context = { console: { warn() {} }, exports: {}, module: { exports: {} }, require: name => {
+    if (name === '../services/catchLocation') return require('../services/catchLocation');
     if (name === '../helpers/errors') return require('../helpers/errors');
     if (name === '../services/masterAnglerReview') return { ...require('../services/masterAnglerReview'), syncSubmission: async () => {} };
     if (name === '../services/trips') return require('../services/trips');
     if (name === '../models') return {
+      CatchLocation: { create: async fields => { createdLocation = fields; } },
       Trip: { findOne: async options => trip && String(options.where.user_id) === String(trip.user_id) ? trip : null, create: async fields => { createdTrip = fields; return { id: 55, ...fields }; } },
       sequelize: { transaction: async fn => fn({ LOCK: { UPDATE: 'UPDATE' } }) },
       Lake: { findByPk: async id => lakeExists ? { id, latitude: 42, longitude: -93 } : null },
-      FishCatch: { create: async fields => { created = fields; return { toJSON: () => ({ id: 7, ...fields }) }; } },
+      FishCatch: { create: async fields => { created = fields; return { id: 7, toJSON: () => ({ id: 7, ...fields }) }; } },
     };
     if (name === '../services/catchWeather') return { getCatchWeather: async (lake, timestamp) => {
       weatherRequest = { lake, timestamp };
@@ -28,7 +31,7 @@ async function run(body, user = { id: 42 }, { weatherFails = false, lakeExists =
   vm.runInNewContext(source, context);
   const response = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   await context.module.exports.createFishCatch({ body, user }, response);
-  return { response, created, createdTrip, weatherRequest };
+  return { response, created, createdTrip, weatherRequest, createdLocation };
 }
 test('new catch uses authenticated ownership, timestamp, and no fabricated photo', async () => {
   const { response, created } = await run({ ...valid, user_id: 999 });
@@ -117,6 +120,32 @@ test('rejects invalid inline trip starts before creating either record', async (
 test('photo URLs and storage keys cannot be supplied by the client', async () => {
   for (const fish_image of ['https://example.com/fish.jpg', 'catches/11111111-1111-4111-8111-111111111111.jpg']) {
     const result = await run({ ...valid, fish_image });
+    assert.equal(result.response.code, 400);
+    assert.equal(result.created, undefined);
+  }
+});
+
+const location = { latitude: 42, longitude: -93, source: 'manual' };
+test('catch creation stores optional location privately, including multipart JSON', async () => {
+  for (const value of [location, JSON.stringify(location)]) {
+    const result = await run({ ...valid, location: value, user_id: 999 });
+    assert.equal(result.response.code, 201);
+    assert.equal(result.createdLocation.catch_id, 7);
+    assert.equal(result.createdLocation.user_id, 42);
+    assert.equal(result.createdLocation.latitude, 42);
+    assert.equal(result.created.location, undefined);
+    assert.equal(result.response.body.location, undefined);
+    assert.equal(result.weatherRequest.lake.latitude, 42);
+  }
+  for (const value of [null, undefined, 'null']) {
+    const result = await run({ ...valid, location: value });
+    assert.equal(result.response.code, 201);
+    assert.equal(result.createdLocation, undefined);
+  }
+});
+test('invalid location is rejected before saving a catch', async () => {
+  for (const value of [{ ...location, latitude: 91 }, { ...location, user_id: 999 }, '{bad', {}]) {
+    const result = await run({ ...valid, location: value });
     assert.equal(result.response.code, 400);
     assert.equal(result.created, undefined);
   }

@@ -124,13 +124,13 @@ test('personal reads and account routes enforce verified identity and ownership'
     '../services/masterAnglerReview': { serializeAward: fish => fish.toJSON(), awardFields: () => ({}) },
   });
   const species = load('../controllers/speciesController', { '../models': models, sequelize: { Op: {} } });
-  const shared = { express, '../middleware/authMiddleware': auth };
+  const shared = { express, '../middleware/authMiddleware': auth, '../controllers/preferencesController': load('../controllers/preferencesController', { '../models': models }), '../controllers/catchLocationController': load('../controllers/catchLocationController', { '../models': models, '../services/catchLocation': require('../services/catchLocation') }) };
   const app = express();
   app.use(express.json());
   app.use('/users', load('../routes/userRoutes', { ...shared, '../controllers/userController': users }));
   const noop = (req, res) => res.json({});
   app.use('/fishcatch', load('../routes/fishCatchRoutes', {
-    ...shared, '../controllers/fishCatchController': fish,
+    ...shared, '../controllers/catchExportController': { exportCatchGpx: (req, res) => res.json({}) }, '../controllers/catchMapController': { getCatchMap: (req, res) => res.json({}) }, '../controllers/fishCatchController': fish,
     '../middleware/catchPhotoUpload': noop, '../controllers/catchPhotoController': { getPhoto: noop, savePhoto: noop },
     '../controllers/catchAnalysisController': { getCatchAnalysis: noop },
   }));

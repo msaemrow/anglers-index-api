@@ -30,6 +30,9 @@ const TackleBox = require("./TackleBox")(sequelize);
 
 // Store in db object so migrations can see them
 db.RevokedSession = require("./RevokedSession")(sequelize);
+db.CatchLocation = require("./CatchLocation")(sequelize);
+// One-way association for owner-only map queries; catches never include locations.
+db.CatchLocation.belongsTo(FishCatch, { foreignKey: "catch_id", as: "catch" });
 db.Trip = Trip;
 db.User = User;
 db.FishCatch = FishCatch;

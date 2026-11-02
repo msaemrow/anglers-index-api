@@ -35,6 +35,7 @@ module.exports = (sequelize) => {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      capture_catch_location: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
       fish_catches: {
         type: DataTypes.INTEGER,
         defaultValue: 0,
