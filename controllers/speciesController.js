@@ -30,56 +30,33 @@ exports.getAllFishSpecies = async (req, res) => {
       order: [["name", "ASC"]], // Sort alphabetically by name
     };
 
-    // If includeCaughtSpecies flag is set, include ONLY the biggest catch for each species
-    if (includeCaughtSpecies === "true") {
-      queryOptions.include = [
-        {
-          model: FishCatch,
-          as: "fishCatches", // Adjust alias based on your association
-          where: { user_id: req.user.id },
-          required: false, // LEFT JOIN - includes species even with no catches
-          attributes: ["id", "length", "date", "master_angler"],
-          limit: 1, // Only get one catch per species
-          separate: true, // Required for limit to work per species
-          order: [["length", "DESC"]], // Get the biggest one
-        },
-      ];
-    }
-
     const species = await Species.findAll(queryOptions);
-
-    // Transform data if includeCaughtSpecies is true
     let result = species;
     if (includeCaughtSpecies === "true") {
-      const catchIds = species.flatMap(sp => (sp.toJSON().fishCatches || []).map(c => c.id));
-      const reviews = catchIds.length ? await MasterAngler.findAll({
-        where: { catch_id: { [Op.in]: catchIds } }, attributes: ["catch_id", "status"], order: [["id", "DESC"]], raw: true,
-      }) : [];
-      const statuses = new Map();
-      for (const review of reviews) if (!statuses.has(review.catch_id)) statuses.set(review.catch_id, review.status);
-      result = species.map((sp) => {
-        const speciesData = sp.toJSON();
-
-        // Since we used limit: 1, there's either 0 or 1 catch
-        const biggestCatch =
-          speciesData.fishCatches && speciesData.fishCatches.length > 0
-            ? speciesData.fishCatches[0]
-            : null;
-
-        return {
-          ...speciesData,
-          caught: !!biggestCatch,
-          personalBest: biggestCatch
-            ? {
-                catchId: biggestCatch.id,
-                length: biggestCatch.length,
-                date: biggestCatch.date,
-              }
-            : null,
-          master_angler_status: biggestCatch ? statuses.get(biggestCatch.id) || "not_eligible" : "not_eligible",
-          approved_master_angler: biggestCatch ? statuses.get(biggestCatch.id) === "approved" : false,
-          fishCatches: undefined, // Remove the catches array from response
-        };
+      // One bounded aggregate per species, without loading every catch into Node.
+      const [stats] = await sequelize.query(`
+        SELECT c.species_id, COUNT(*)::integer AS catch_count,
+          COUNT(*) FILTER (WHERE EXISTS (
+            SELECT 1 FROM master_angler_catches m
+            WHERE m.catch_id = c.id AND m.deleted_at IS NULL AND m.status = 'approved'
+              AND m.id = (SELECT MAX(latest.id) FROM master_angler_catches latest
+                WHERE latest.catch_id = c.id AND latest.deleted_at IS NULL)
+          ))::integer AS master_angler_count,
+          MAX(c.id) FILTER (WHERE c.personal_best) AS best_id,
+          MAX(c.length) FILTER (WHERE c.personal_best) AS best_length,
+          MAX(c.date) FILTER (WHERE c.personal_best) AS best_date
+        FROM fish_catches c WHERE c.user_id = :userId AND c.deleted_at IS NULL
+        GROUP BY c.species_id
+      `, { replacements: { userId: req.user.id } });
+      const bySpecies = new Map(stats.map(row => [String(row.species_id), row]));
+      result = species.map(sp => {
+        const data = sp.toJSON();
+        const stat = bySpecies.get(String(data.id));
+        const count = stat?.master_angler_count ?? 0;
+        return { ...data, caught: (stat?.catch_count ?? 0) > 0,
+          personalBest: stat?.best_id ? { catchId: stat.best_id, length: stat.best_length, date: stat.best_date } : null,
+          master_angler_count: count, approved_master_angler: count > 0,
+          master_angler_status: count > 0 ? "approved" : "not_eligible" };
       });
     }
 

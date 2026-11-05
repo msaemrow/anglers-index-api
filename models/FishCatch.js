@@ -78,6 +78,8 @@ module.exports = (sequelize) => {
         defaultValue: "/static/images/stock-fish.jpg",
       },
 
+      personal_best: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+
       master_angler: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,

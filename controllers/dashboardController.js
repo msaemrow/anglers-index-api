@@ -9,7 +9,7 @@ exports.getDashboard = async (req, res) => {
     const where = { user_id: req.user.id };
     const awardInclude = status => ({ model: MasterAngler, as: "masterAnglerEntries", attributes: ["status"], where: { status }, required: true });
     const preview = {
-      attributes: ["id", "date", "weight", "length", "master_angler"],
+      attributes: ["id", "date", "weight", "length", "master_angler", "personal_best"],
       include: [
         { model: MasterAngler, as: "masterAnglerEntries", attributes: ["status"], separate: true, limit: 1, order: [["id", "DESC"]] },
         { model: Lake, as: "lake", attributes: ["name"] },

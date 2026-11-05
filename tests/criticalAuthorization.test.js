@@ -106,7 +106,8 @@ test('personal reads and account routes enforce verified identity and ownership'
     },
     MasterAngler: { count: async () => 0, findOne: async () => null },
     Lure: { count: async () => 0 },
-    Species: { findAll: async options => { calls.push(['species', options.include?.[0].where]); return []; } },
+    Species: { findAll: async () => [] },
+    sequelize: { query: async (sql, options) => { calls.push(['species', { user_id: options.replacements.userId }]); return [[]]; } },
   };
   const auth = load('../middleware/authMiddleware', {
     '../models': models, dotenv: { config() {} },

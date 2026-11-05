@@ -19,7 +19,7 @@ async function run(body, user = { id: 42 }, { weatherFails = false, lakeExists =
       Trip: { findOne: async options => trip && String(options.where.user_id) === String(trip.user_id) ? trip : null, create: async fields => { createdTrip = fields; return { id: 55, ...fields }; } },
       sequelize: { transaction: async fn => fn({ LOCK: { UPDATE: 'UPDATE' } }) },
       Lake: { findByPk: async id => lakeExists ? { id, latitude: 42, longitude: -93 } : null },
-      FishCatch: { create: async fields => { created = fields; return { id: 7, toJSON: () => ({ id: 7, ...fields }) }; } },
+      FishCatch: { create: async fields => { created = fields; return { id: 7, reload: async () => {}, toJSON: () => ({ id: 7, ...fields }) }; } },
     };
     if (name === '../services/catchWeather') return { getCatchWeather: async (lake, timestamp) => {
       weatherRequest = { lake, timestamp };

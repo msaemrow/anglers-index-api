@@ -206,6 +206,7 @@ const createFishCatch = async (req, res) => {
     }, { transaction });
     if (location) await CatchLocation.create({ ...location, catch_id: fish.id, user_id: req.user.id }, { transaction });
     review = await require("../services/masterAnglerReview").syncSubmission(fish, transaction);
+    await fish.reload({ transaction });
     return fish;
     });
     committed = true;
@@ -244,6 +245,7 @@ const updateFishCatch = async (req, res) => {
         return { code: 400, error: "Lake and date cannot be changed while a catch belongs to a trip." };
       await catchObj.update(req.body, { transaction });
       const review = await require("../services/masterAnglerReview").syncSubmission(catchObj, transaction);
+      await catchObj.reload({ transaction });
       return { fish: catchObj, review };
     });
     if (result.error) return res.status(result.code).json({ error: result.error });

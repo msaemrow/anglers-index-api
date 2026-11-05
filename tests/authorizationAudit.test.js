@@ -102,6 +102,7 @@ test('every protected route rejects anonymous access and catalog/admin writes re
 test('catch writes reject other owners before changes and preserve owner/admin operations', async () => {
   const mutations = [];
   const fish = { id: 17, user_id: 7, toJSON: () => ({ id: 17, user_id: 7 }),
+    reload: async () => {},
     update: async data => mutations.push(['update', data]), destroy: async () => mutations.push(['delete']) };
   const controller = load('../controllers/fishCatchController', {
     '../models': { FishCatch: { findByPk: async () => fish }, MasterAngler: { findOne: async () => null },
