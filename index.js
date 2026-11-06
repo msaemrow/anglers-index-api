@@ -5,9 +5,18 @@ require("./helpers/authTokens"); // Fail before startup if authentication config
 const express = require("express");
 const cors = require("cors");
 const app = express();
-const { requestContext, errorHandler, publicError, logError } = require("./helpers/errors");
+const {
+  requestContext,
+  errorHandler,
+  publicError,
+  logError,
+} = require("./helpers/errors");
 app.use(requestContext);
-const { createRateLimiters, applyRouteLimits, readTrustedProxies } = require("./middleware/rateLimits");
+const {
+  createRateLimiters,
+  applyRouteLimits,
+  readTrustedProxies,
+} = require("./middleware/rateLimits");
 app.set("trust proxy", readTrustedProxies());
 const rateLimits = createRateLimiters();
 const { swaggerSpec, swaggerUi } = require("./swagger/swaggerConfig");
@@ -32,6 +41,7 @@ const allowedOrigins = [
   "https://anglers-index.vercel.app",
   "https://anglersindex.com",
   "https://www.anglersindex.com",
+  "https://fish.saemrow.com",
 ];
 app.use(
   cors({
